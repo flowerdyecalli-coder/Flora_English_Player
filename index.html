@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#ffffff" />
+  <title>FLORA English Player</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="appShell" class="app-shell">
+    <header class="brand-header">
+      <div class="brand">
+        <strong>FLORA</strong>
+        <span>English Player</span>
+      </div>
+      <button id="settingsBtn" class="icon-btn" aria-label="설정">⚙</button>
+    </header>
+
+    <main>
+      <!-- 학습 -->
+      <section id="studyView" class="view active">
+        <div class="study-top">
+          <div>
+            <div id="currentPlaylistName" class="eyebrow">기본 플레이리스트</div>
+            <div id="sentenceCounter" class="counter">0 / 0</div>
+          </div>
+          <button id="favoriteBtn" class="star-btn" aria-label="복습 표시">☆</button>
+        </div>
+
+        <article class="sentence-card">
+          <div class="display-mode-row">
+            <button class="chip display-mode active" data-mode="both">영어 + 한글</button>
+            <button class="chip display-mode" data-mode="en">영어만</button>
+            <button class="chip display-mode" data-mode="kr">한글만</button>
+          </div>
+
+          <h1 id="englishText" class="english-text">플레이리스트에서 문장을 추가해 주세요.</h1>
+          <p id="koreanText" class="korean-text"></p>
+
+          <div id="detailsBox" class="details-box hidden">
+            <details id="structureDetails">
+              <summary>문장 구조</summary>
+              <div id="structureText" class="detail-content"></div>
+            </details>
+            <details id="grammarDetails">
+              <summary>문법</summary>
+              <div id="grammarText" class="detail-content"></div>
+            </details>
+            <details id="wordsDetails">
+              <summary>단어</summary>
+              <div id="wordsText" class="word-list"></div>
+            </details>
+          </div>
+
+          <button id="editSentenceBtn" class="text-btn">문장 정보 수정</button>
+        </article>
+
+        <section class="player-card">
+          <div class="status-line">
+            <span id="playStatus">준비</span>
+            <span id="timerText">00:00</span>
+          </div>
+
+          <div id="countdownArea" class="countdown hidden">
+            <div id="countdownLabel">따라 말해보세요.</div>
+            <strong id="countdownNumber">5</strong>
+          </div>
+
+          <div class="transport">
+            <button id="prevBtn" class="round-btn" aria-label="이전">◀</button>
+            <button id="recordBtn" class="round-btn record" aria-label="녹음">●</button>
+            <button id="playBtn" class="round-btn primary" aria-label="재생">▶</button>
+            <button id="pauseBtn" class="round-btn" aria-label="일시정지">Ⅱ</button>
+            <button id="nextBtn" class="round-btn" aria-label="다음">▶|</button>
+          </div>
+
+          <div class="quick-settings">
+            <label>반복
+              <select id="repeatSelect">
+                <option value="1">1회</option><option value="2">2회</option><option value="3" selected>3회</option>
+                <option value="4">4회</option><option value="5">5회</option><option value="6">6회</option>
+                <option value="7">7회</option><option value="8">8회</option><option value="9">9회</option>
+                <option value="10">10회</option><option value="infinite">무한</option>
+              </select>
+            </label>
+            <label>지연
+              <select id="delaySelect"></select>
+            </label>
+            <label>속도
+              <select id="speedSelect"></select>
+            </label>
+            <label>언어
+              <select id="languageSelect">
+                <option value="EN">EN</option>
+                <option value="KR">KR</option>
+                <option value="EN_KR" selected>EN→KR</option>
+                <option value="KR_EN">KR→EN</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="player-actions">
+            <label class="switch-row"><input id="autoRecordToggle" type="checkbox" /> 자동 녹음</label>
+            <select id="recordDurationSelect">
+              <option value="3">3초</option><option value="5" selected>5초</option>
+              <option value="7">7초</option><option value="10">10초</option>
+              <option value="manual">직접 종료</option>
+            </select>
+            <button id="stopBtn" class="danger-btn">정지</button>
+          </div>
+        </section>
+      </section>
+
+      <!-- 플레이리스트 -->
+      <section id="playlistView" class="view">
+        <div class="section-header">
+          <div>
+            <div class="eyebrow">학습 자료</div>
+            <h2>플레이리스트</h2>
+          </div>
+          <button id="addPlaylistBtn" class="primary-btn">+ 추가</button>
+        </div>
+
+        <div id="playlistCards" class="playlist-cards"></div>
+
+        <section id="playlistDetail" class="playlist-detail hidden">
+          <div class="detail-head">
+            <button id="closePlaylistDetail" class="icon-btn">←</button>
+            <div class="grow">
+              <h3 id="detailPlaylistName">플레이리스트</h3>
+              <div id="detailTotal" class="muted">총 0개</div>
+            </div>
+            <button id="addSentenceBtn" class="primary-btn small">문장 +</button>
+          </div>
+
+          <div class="toolbar-grid">
+            <select id="sortSelect">
+              <option value="order">기본 순서</option>
+              <option value="name">이름순</option>
+              <option value="nameDesc">역이름순</option>
+              <option value="lesson">Lesson순</option>
+              <option value="review">복습 우선</option>
+            </select>
+            <select id="playModeSelect">
+              <option value="sequence">순차</option>
+              <option value="shuffle">셔플</option>
+            </select>
+            <button id="playAllBtn">▶ 전체 재생</button>
+            <button id="reviewOnlyBtn">★ 복습만</button>
+          </div>
+
+          <div class="selection-bar">
+            <span id="selectedCount">0개 선택</span>
+            <button id="practiceSelectedBtn">선택 연습</button>
+          </div>
+
+          <div id="sentenceList" class="sentence-list"></div>
+        </section>
+      </section>
+
+      <!-- 녹음 -->
+      <section id="recordingsView" class="view">
+        <div class="section-header">
+          <div>
+            <div class="eyebrow">로컬 저장</div>
+            <h2>녹음</h2>
+          </div>
+          <button id="chooseFolderBtn" class="secondary-btn">저장 폴더 선택</button>
+        </div>
+
+        <div class="storage-summary">
+          <div><strong id="recordingCount">0</strong><span>녹음 파일</span></div>
+          <div><strong id="recordingSize">0 MB</strong><span>사용 중</span></div>
+        </div>
+
+        <div id="recordingList" class="recording-list"></div>
+
+        <div id="recordingSelectionBar" class="bottom-action-bar hidden">
+          <span id="recordingSelectedCount">0개 선택됨</span>
+          <button id="mergeBtn">병합</button>
+          <button id="downloadSelectedBtn">다운로드</button>
+          <button id="shareSelectedBtn">공유</button>
+          <button id="deleteSelectedBtn" class="danger-text">삭제</button>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav">
+      <button class="nav-btn active" data-view="studyView"><span>▶</span>학습</button>
+      <button class="nav-btn" data-view="playlistView"><span>☰</span>플레이리스트</button>
+      <button class="nav-btn" data-view="recordingsView"><span>🎤</span>녹음</button>
+    </nav>
+  </div>
+
+  <!-- 플레이리스트 추가 -->
+  <dialog id="playlistDialog">
+    <form method="dialog" class="dialog-card" id="playlistForm">
+      <h3>플레이리스트 추가</h3>
+      <label>이름<input id="playlistNameInput" required placeholder="예: Have you ever ~" /></label>
+      <label>파일 가져오기
+        <input id="importFileInput" type="file" accept=".csv,.txt" />
+      </label>
+      <p class="help">CSV/TXT는 브라우저 안에서만 처리됩니다. XLSX는 외부 라이브러리 없이 직접 읽을 수 없어 CSV 사용을 권장합니다.</p>
+      <div class="dialog-actions">
+        <button value="cancel">취소</button>
+        <button id="createPlaylistSubmit" value="default" class="primary-btn">추가</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 문장 편집 -->
+  <dialog id="sentenceDialog">
+    <form method="dialog" class="dialog-card wide" id="sentenceForm">
+      <h3 id="sentenceDialogTitle">문장 추가</h3>
+      <input id="editingSentenceId" type="hidden" />
+      <label>Lesson<input id="lessonInput" /></label>
+      <label>영어 문장<textarea id="englishInput" rows="3" required></textarea></label>
+      <label>한글 해석<textarea id="koreanInput" rows="2"></textarea></label>
+      <label>문법<textarea id="grammarInput" rows="2"></textarea></label>
+      <label>문장 구조<textarea id="structureInput" rows="2"></textarea></label>
+      <div class="word-edit-grid">
+        <label>단어 1<input id="word1Input" /></label>
+        <label>뜻<input id="word1MeaningInput" /></label>
+        <label>발음기호<input id="word1PronunciationInput" /></label>
+        <label>품사<input id="word1PosInput" /></label>
+        <label>단어 2<input id="word2Input" /></label>
+        <label>뜻<input id="word2MeaningInput" /></label>
+        <label>발음기호<input id="word2PronunciationInput" /></label>
+        <label>품사<input id="word2PosInput" /></label>
+      </div>
+      <label>메모<textarea id="memoInput" rows="2"></textarea></label>
+      <div class="dialog-actions">
+        <button value="cancel">취소</button>
+        <button id="saveSentenceBtn" value="default" class="primary-btn">저장</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 설정 -->
+  <dialog id="settingsDialog">
+    <form method="dialog" class="dialog-card">
+      <h3>설정</h3>
+      <label class="switch-row"><input id="autoNextToggle" type="checkbox" checked /> 반복 완료 후 다음 문장</label>
+      <button id="resetLocalDataBtn" type="button" class="danger-btn">로컬 학습 데이터 초기화</button>
+      <div class="dialog-actions"><button value="cancel">닫기</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
