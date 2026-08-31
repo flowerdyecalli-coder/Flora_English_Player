@@ -216,6 +216,7 @@
   }
 
   function bindEvents() {
+    ["touchstart","pointerdown","click"].forEach(type=>document.addEventListener(type,prepareSpeech,{once:true,passive:true}));
     els.navBtns.forEach(btn=>btn.addEventListener("click",()=>switchView(btn.dataset.view)));
     $("#settingsBtn").addEventListener("click",()=>els.settingsDialog.showModal());
     $("#addPlaylistBtn").addEventListener("click",()=>els.playlistDialog.showModal());
@@ -360,9 +361,19 @@
   function createPlaylistFromDialog(e) {
     e.preventDefault();
     const name=$("#playlistNameInput").value.trim();
+    const file=$("#importFileInput").files[0];
+
+    if(file?.name.toLowerCase().endsWith(".csv")) {
+      importCSVAsPlaylists(file, name).then(result=>{
+        saveState(); renderAll();
+        els.playlistDialog.close(); $("#playlistForm").reset();
+        toast(`${result.playlistCount}개 플레이리스트 · ${result.sentenceCount}개 문장을 가져왔습니다.`);
+      }).catch(err=>{console.error(err);toast("CSV 파일을 읽지 못했습니다.");});
+      return;
+    }
+
     if(!name){toast("플레이리스트 이름을 입력해 주세요.");return;}
     const p={id:uid(),name,description:"",sentences:[]};
-    const file=$("#importFileInput").files[0];
     state.playlists.push(p);
     state.currentPlaylistId=p.id;
     state.currentSentenceId=null;
@@ -376,6 +387,52 @@
     } else {
       els.playlistDialog.close(); $("#playlistForm").reset(); renderAll(); toast("플레이리스트를 추가했습니다.");
     }
+  }
+
+  async function importCSVAsPlaylists(file, fallbackName="") {
+    const text=await file.text();
+    const rows=parseCSV(text);
+    if(rows.length<2) throw new Error("empty csv");
+    const headers=rows[0].map(h=>h.trim().replace(/^\uFEFF/,"").toUpperCase());
+    const idx=(name)=>headers.indexOf(name);
+    if(idx("ENGLISH")<0) throw new Error("ENGLISH column missing");
+
+    const groups=new Map();
+    for(const [i,r] of rows.slice(1).entries()) {
+      if(!r.some(Boolean)) continue;
+      const v=(name)=>{const n=idx(name); return n>=0 ? (r[n]??"").trim() : "";};
+      const english=v("ENGLISH");
+      if(!english) continue;
+      const rawLesson=v("LESSON") || fallbackName || "기본";
+      const m=rawLesson.match(/(\d{1,3})/);
+      const playlistName=m ? m[1].padStart(3,"0") : rawLesson.replace(/^DAY\s*/i,"").trim() || "기본";
+      if(!groups.has(playlistName)) groups.set(playlistName,[]);
+      groups.get(playlistName).push(newSentence({
+        order:Number(v("ORDER"))||i+1, lesson:rawLesson, english, korean:v("KOREAN"),
+        grammar:v("GRAMMAR"), structure:v("STRUCTURE"),
+        words:[
+          {word:v("WORD_1"),meaning:v("WORD_1_MEANING"),pronunciation:v("WORD_1_PRONUNCIATION"),pos:v("WORD_1_POS")},
+          {word:v("WORD_2"),meaning:v("WORD_2_MEANING"),pronunciation:v("WORD_2_PRONUNCIATION"),pos:v("WORD_2_POS")}
+        ]
+      }));
+    }
+    if(!groups.size) throw new Error("no valid rows");
+
+    const imported=[];
+    for(const [playlistName,sentences] of [...groups.entries()].sort((a,b)=>a[0].localeCompare(b[0],undefined,{numeric:true}))) {
+      // 같은 번호를 다시 가져오면 중복 생성하지 않고 새 내용으로 교체합니다.
+      let p=state.playlists.find(x=>x.name===playlistName);
+      if(!p) { p={id:uid(),name:playlistName,description:"",sentences:[]}; state.playlists.push(p); }
+      p.sentences=sentences.map((s,n)=>({...s,order:n+1}));
+      imported.push(p);
+    }
+    const first=imported[0];
+    if(first) {
+      state.currentPlaylistId=first.id;
+      state.currentSentenceId=first.sentences[0]?.id||null;
+      state.currentIndex=0;
+    }
+    return {playlistCount:imported.length,sentenceCount:imported.reduce((n,p)=>n+p.sentences.length,0)};
   }
 
   async function importFileToPlaylist(file,p) {
@@ -529,17 +586,61 @@
 
   function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 
+  let speechReady=false;
+
+  function prepareSpeech() {
+    if(!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) return false;
+    try {
+      speechSynthesis.resume();
+      speechSynthesis.getVoices();
+      speechReady=true;
+      return true;
+    } catch(e) { console.warn("speech init failed",e); return false; }
+  }
+
+  function chooseVoice(lang) {
+    const voices=speechSynthesis.getVoices?.()||[];
+    const wanted=(lang||"").toLowerCase();
+    const base=wanted.split("-")[0];
+    return voices.find(v=>(v.lang||"").toLowerCase()===wanted)
+      || voices.find(v=>(v.lang||"").toLowerCase().startsWith(base))
+      || null;
+  }
+
   function speakText(text,lang) {
     return new Promise((resolve,reject)=>{
       if(!text){resolve();return;}
       if(session.stopRequested){reject(new Error("STOP"));return;}
-      speechSynthesis.cancel();
+      if(!prepareSpeech()) {
+        toast("이 브라우저에서는 음성 재생을 지원하지 않습니다.");
+        resolve(); return;
+      }
+
+      let finished=false;
+      const finish=(err=null)=>{
+        if(finished)return; finished=true; clearTimeout(watchdog);
+        if(err) reject(err); else resolve();
+      };
       const u=new SpeechSynthesisUtterance(text);
       u.lang=lang; u.rate=Number(state.settings.speed)||0.8;
+      const voice=chooseVoice(lang); if(voice)u.voice=voice;
       u.onstart=()=>setStatus("🎧 재생 중");
-      u.onend=()=>resolve();
-      u.onerror=e=>{ if(session.stopRequested) reject(new Error("STOP")); else resolve(); };
-      speechSynthesis.speak(u);
+      u.onend=()=>finish();
+      u.onerror=()=>session.stopRequested ? finish(new Error("STOP")) : finish();
+
+      // 모바일 Chrome/Safari에서 cancel 직후 speak가 먹히지 않는 현상을 줄입니다.
+      try { speechSynthesis.cancel(); speechSynthesis.resume(); } catch {}
+      setTimeout(()=>{
+        if(session.stopRequested){finish(new Error("STOP"));return;}
+        try { speechSynthesis.speak(u); } catch(e) { console.warn(e); finish(); }
+      },90);
+
+      // 일부 모바일에서 onend가 오지 않아 전체 재생이 멈추는 것을 방지합니다.
+      const estimated=Math.max(4000, Math.min(30000, text.length*180/(Number(state.settings.speed)||0.8)));
+      const watchdog=setTimeout(()=>{
+        try{speechSynthesis.cancel();}catch{}
+        finish();
+      },estimated);
     });
   }
 

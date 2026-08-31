@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#ffffff" />
   <title>FLORA English Player</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=20260831-3" />
 </head>
 <body>
   <div id="appShell" class="app-shell">
@@ -134,19 +134,23 @@
             <button id="addSentenceBtn" class="primary-btn small">문장 +</button>
           </div>
 
-          <div class="toolbar-grid">
-            <select id="sortSelect">
-              <option value="order">기본 순서</option>
-              <option value="name">이름순</option>
-              <option value="nameDesc">역이름순</option>
-              <option value="lesson">Lesson순</option>
-              <option value="review">복습 우선</option>
+          <div class="lesson-toolbar">
+            <div class="lesson-toolbar-count"><span id="lessonCountBadge">레슨</span></div>
+            <select id="sortSelect" aria-label="정렬 방식">
+              <option value="asc">↑ 오름차순</option>
+              <option value="desc">↓ 내림차순</option>
+              <option value="shuffle">↝ 셔플</option>
             </select>
-            <select id="playModeSelect">
-              <option value="sequence">순차</option>
-              <option value="shuffle">셔플</option>
-            </select>
-            <button id="playAllBtn">▶ 전체 재생</button>
+            <button id="lessonPickerBtn" class="lesson-picker-btn" type="button">전체 레슨 ▾</button>
+          </div>
+
+          <div id="lessonPickerPanel" class="lesson-picker-panel hidden">
+            <div class="lesson-picker-help">체크 후 아래로 드래그하면 여러 레슨을 한 번에 선택할 수 있습니다.</div>
+            <div id="lessonCheckboxList" class="lesson-checkbox-list"></div>
+          </div>
+
+          <div class="toolbar-grid action-toolbar">
+            <button id="playAllBtn">▶ 선택 레슨 재생</button>
             <button id="reviewOnlyBtn">★ 복습만</button>
           </div>
 
@@ -197,11 +201,11 @@
   <dialog id="playlistDialog">
     <form method="dialog" class="dialog-card" id="playlistForm">
       <h3>플레이리스트 추가</h3>
-      <label>이름<input id="playlistNameInput" required placeholder="예: Have you ever ~" /></label>
+      <label>이름<input id="playlistNameInput" placeholder="직접 만들 때만 입력 (CSV는 자동 분류)" /></label>
       <label>파일 가져오기
         <input id="importFileInput" type="file" accept=".csv,.txt" />
       </label>
-      <p class="help">CSV/TXT는 브라우저 안에서만 처리됩니다. XLSX는 외부 라이브러리 없이 직접 읽을 수 없어 CSV 사용을 권장합니다.</p>
+      <p class="help">CSV의 LESSON 값이 DAY 001~100이면 001~100 플레이리스트로 자동 분리됩니다. TXT는 하나의 플레이리스트로 가져옵니다.</p>
       <div class="dialog-actions">
         <button value="cancel">취소</button>
         <button id="createPlaylistSubmit" value="default" class="primary-btn">추가</button>
@@ -242,12 +246,18 @@
     <form method="dialog" class="dialog-card">
       <h3>설정</h3>
       <label class="switch-row"><input id="autoNextToggle" type="checkbox" checked /> 반복 완료 후 다음 문장</label>
+      <div class="backup-actions">
+        <button id="exportBackupBtn" type="button" class="secondary-btn">백업 저장</button>
+        <button id="importBackupBtn" type="button" class="secondary-btn">백업 가져오기</button>
+        <input id="backupFileInput" type="file" accept=".json,application/json" class="hidden" />
+      </div>
+      <p class="help">같은 기기에서는 자동 저장됩니다. 다른 PC·휴대폰으로 옮길 때는 백업 파일을 사용하세요.</p>
       <button id="resetLocalDataBtn" type="button" class="danger-btn">로컬 학습 데이터 초기화</button>
       <div class="dialog-actions"><button value="cancel">닫기</button></div>
     </form>
   </dialog>
 
   <div id="toast" class="toast" aria-live="polite"></div>
-  <script src="app.js"></script>
+  <script src="app.js?v=20260831-3"></script>
 </body>
 </html>
