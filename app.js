@@ -33,6 +33,7 @@
     playMode: "sequence",
     reviewOnly: false,
     selectedSentenceIds: [],
+    selectedLessons: [],
     settings: {
       repeat: "3", delay: "5", speed: "0.8", language: "EN_KR",
       displayMode: "both", autoRecord: false, recordDuration: "5", autoNext: true
@@ -59,6 +60,7 @@
     autoRecordToggle: $("#autoRecordToggle"), recordDurationSelect: $("#recordDurationSelect"),
     playlistCards: $("#playlistCards"), playlistDetail: $("#playlistDetail"), detailPlaylistName: $("#detailPlaylistName"),
     detailTotal: $("#detailTotal"), sentenceList: $("#sentenceList"), sortSelect: $("#sortSelect"), playModeSelect: $("#playModeSelect"),
+    lessonCountBadge: $("#lessonCountBadge"), lessonPickerBtn: $("#lessonPickerBtn"), lessonPickerPanel: $("#lessonPickerPanel"), lessonCheckboxList: $("#lessonCheckboxList"),
     selectedCount: $("#selectedCount"), recordingList: $("#recordingList"), recordingCount: $("#recordingCount"), recordingSize: $("#recordingSize"),
     recordingSelectionBar: $("#recordingSelectionBar"), recordingSelectedCount: $("#recordingSelectedCount"),
     playlistDialog: $("#playlistDialog"), sentenceDialog: $("#sentenceDialog"), settingsDialog: $("#settingsDialog"), toast: $("#toast")
@@ -103,19 +105,34 @@
   function currentPlaylist() {
     return state.playlists.find(p => p.id === state.currentPlaylistId) || state.playlists[0] || null;
   }
+  function lessonNumber(value) {
+    const m=String(value||"").match(/(\d{1,3})/);
+    return m ? Number(m[1]) : 9999;
+  }
+  function lessonLabel(value) {
+    const n=lessonNumber(value);
+    return n===9999 ? (String(value||"").trim() || "기타") : `DAY ${String(n).padStart(3,"0")}`;
+  }
+  function playlistLessons(playlist=currentPlaylist()) {
+    if(!playlist) return [];
+    const map=new Map();
+    for(const s of playlist.sentences){
+      const label=lessonLabel(s.lesson);
+      if(!map.has(label)) map.set(label, lessonNumber(s.lesson));
+    }
+    return [...map.entries()].sort((a,b)=>a[1]-b[1] || a[0].localeCompare(b[0])).map(x=>x[0]);
+  }
   function sortedSentences(playlist = currentPlaylist()) {
     if (!playlist) return [];
     let list = [...playlist.sentences];
-    const sort = els.sortSelect?.value || "order";
-    if (sort === "name") list.sort((a,b)=>a.english.localeCompare(b.english));
-    if (sort === "nameDesc") list.sort((a,b)=>b.english.localeCompare(a.english));
-    if (sort === "lesson") list.sort((a,b)=>(a.lesson||"").localeCompare(b.lesson||"") || a.order-b.order);
-    if (sort === "review") list.sort((a,b)=>Number(b.review)-Number(a.review) || a.order-b.order);
-    else if (sort === "order" || sort === "asc") list.sort((a,b)=>a.order-b.order);
-    else if (sort === "desc") list.sort((a,b)=>b.order-a.order);
-    else if (sort === "shuffle") {
-      for (let i=list.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [list[i],list[j]]=[list[j],list[i]]; }
+    if(state.selectedLessons?.length) {
+      const selected=new Set(state.selectedLessons);
+      list=list.filter(s=>selected.has(lessonLabel(s.lesson)));
     }
+    const sort = els.sortSelect?.value || "asc";
+    if (sort === "desc") list.sort((a,b)=>b.order-a.order);
+    else if (sort === "shuffle") list=shuffle(list);
+    else list.sort((a,b)=>a.order-b.order);
     return list;
   }
   function currentSentence() {
@@ -183,15 +200,22 @@
     }).join("") : `<p class="muted">플레이리스트가 없습니다.</p>`;
   }
 
+  function renderLessonPicker(p) {
+    const lessons=playlistLessons(p);
+    const selected=new Set(state.selectedLessons||[]);
+    els.lessonCountBadge.textContent=`${p.sentences.length}개`;
+    els.lessonPickerBtn.textContent=selected.size ? `${selected.size}개 레슨 선택 ▾` : `전체 레슨 ▾`;
+    els.lessonCheckboxList.innerHTML = `<label class="lesson-option lesson-all"><input type="checkbox" data-lesson="__ALL__" ${selected.size===0?"checked":""}> 전체 레슨</label>` + lessons.map(l=>`<label class="lesson-option"><input type="checkbox" data-lesson="${escapeHtml(l)}" ${selected.has(l)?"checked":""}> ${escapeHtml(l.replace(/^DAY\s*/i,"Lesson "))}</label>`).join("");
+  }
+
   function renderPlaylistDetail() {
     const p = currentPlaylist();
     if (!p) return;
     els.detailPlaylistName.textContent = p.name;
-    els.detailTotal.textContent = `총 ${p.sentences.length}개`;
-
     let list = sortedSentences(p);
     if (state.reviewOnly) list = list.filter(s=>s.review);
-
+    els.detailTotal.textContent = `총 ${list.length}개 / 전체 ${p.sentences.length}개`;
+    renderLessonPicker(p);
     els.sentenceList.innerHTML = list.length ? list.map((s,i)=>{
       const checked = state.selectedSentenceIds.includes(s.id);
       const stateIcon = s.review ? "★" : s.completed ? "✓" : "○";
@@ -201,11 +225,11 @@
         <div class="sentence-body" data-action="open-sentence">
           <div class="en">${escapeHtml(s.english||"")}</div>
           ${s.korean ? `<div class="kr">${escapeHtml(s.korean)}</div>`:""}
+          <div class="sentence-lesson">${escapeHtml(lessonLabel(s.lesson).replace(/^DAY\s*/i,"Lesson "))}</div>
         </div>
         <button class="state" data-action="toggle-review" aria-label="복습">${stateIcon}</button>
       </div>`;
-    }).join("") : `<p class="muted">표시할 문장이 없습니다.</p>`;
-
+    }).join("") : `<p class="muted">선택한 레슨에 문장이 없습니다.</p>`;
     els.selectedCount.textContent = `${state.selectedSentenceIds.length}개 선택`;
   }
 
@@ -258,6 +282,18 @@
     els.sentenceList.addEventListener("change", handleSentenceCheck);
 
     els.sortSelect.addEventListener("change",renderPlaylistDetail);
+    els.lessonPickerBtn.addEventListener("click",()=>els.lessonPickerPanel.classList.toggle("hidden"));
+    els.lessonCheckboxList.addEventListener("change",e=>{
+      const cb=e.target.closest('input[data-lesson]'); if(!cb)return;
+      const value=cb.dataset.lesson;
+      if(value==="__ALL__") { state.selectedLessons=[]; }
+      else {
+        const set=new Set(state.selectedLessons||[]);
+        if(cb.checked)set.add(value); else set.delete(value);
+        state.selectedLessons=[...set];
+      }
+      state.selectedSentenceIds=[]; saveState(); renderPlaylistDetail();
+    });
     if (els.playModeSelect) els.playModeSelect.addEventListener("change",()=>{state.playMode=els.playModeSelect.value;saveState()});
     $("#reviewOnlyBtn").addEventListener("click",()=>{state.reviewOnly=!state.reviewOnly;renderPlaylistDetail();toast(state.reviewOnly?"복습 문장만 표시합니다.":"전체 문장을 표시합니다.")});
     $("#playAllBtn").addEventListener("click",()=>startPlaylistPractice());
@@ -317,7 +353,7 @@
     if (e.target.closest('[data-action="play-playlist"]')) {
       switchView("studyView"); renderStudy(); startPlaylistPractice();
     } else {
-      state.reviewOnly=false; state.selectedSentenceIds=[];
+      state.reviewOnly=false; state.selectedSentenceIds=[]; state.selectedLessons=[];
       els.playlistDetail.classList.remove("hidden"); renderPlaylistDetail(); renderStudy();
     }
   }
@@ -366,77 +402,19 @@
     e.preventDefault();
     const name=$("#playlistNameInput").value.trim();
     const file=$("#importFileInput").files[0];
-
-    if(file?.name.toLowerCase().endsWith(".csv")) {
-      importCSVAsPlaylists(file, name).then(result=>{
-        saveState(); renderAll();
-        els.playlistDialog.close(); $("#playlistForm").reset();
-        toast(`${result.playlistCount}개 플레이리스트 · ${result.sentenceCount}개 문장을 가져왔습니다.`);
-      }).catch(err=>{console.error(err);toast("CSV 파일을 읽지 못했습니다.");alert("CSV 파일을 읽지 못했습니다.\n" + (err?.message || err));});
-      return;
-    }
-
-    if(!name){toast("플레이리스트 이름을 입력해 주세요.");return;}
-    const p={id:uid(),name,description:"",sentences:[]};
-    state.playlists.push(p);
-    state.currentPlaylistId=p.id;
-    state.currentSentenceId=null;
-    saveState();
-
+    if(!name){toast("플레이리스트 제목을 입력해 주세요.");return;}
+    let p=state.playlists.find(x=>x.name===name);
+    if(!p){ p={id:uid(),name,description:"",sentences:[]}; state.playlists.push(p); }
+    state.currentPlaylistId=p.id; state.currentSentenceId=null; state.selectedLessons=[];
     if(file) {
       importFileToPlaylist(file,p).then(()=>{
         state.currentSentenceId=p.sentences[0]?.id||null; saveState(); renderAll();
-        els.playlistDialog.close(); $("#playlistForm").reset(); toast(`${p.sentences.length}개 문장을 가져왔습니다.`);
+        els.playlistDialog.close(); $("#playlistForm").reset();
+        toast(`"${name}"에 ${p.sentences.length}개 문장을 가져왔습니다.`);
       }).catch(err=>{console.error(err);toast("파일을 읽지 못했습니다.");});
     } else {
-      els.playlistDialog.close(); $("#playlistForm").reset(); renderAll(); toast("플레이리스트를 추가했습니다.");
+      saveState(); els.playlistDialog.close(); $("#playlistForm").reset(); renderAll(); toast("플레이리스트를 추가했습니다.");
     }
-  }
-
-  async function importCSVAsPlaylists(file, fallbackName="") {
-    const text=await file.text();
-    const rows=parseCSV(text);
-    if(rows.length<2) throw new Error("empty csv");
-    const headers=rows[0].map(h=>h.trim().replace(/^\uFEFF/,"").toUpperCase());
-    const idx=(name)=>headers.indexOf(name);
-    if(idx("ENGLISH")<0) throw new Error("ENGLISH column missing");
-
-    const groups=new Map();
-    for(const [i,r] of rows.slice(1).entries()) {
-      if(!r.some(Boolean)) continue;
-      const v=(name)=>{const n=idx(name); return n>=0 ? (r[n]??"").trim() : "";};
-      const english=v("ENGLISH");
-      if(!english) continue;
-      const rawLesson=v("LESSON") || fallbackName || "기본";
-      const m=rawLesson.match(/(\d{1,3})/);
-      const playlistName=m ? m[1].padStart(3,"0") : rawLesson.replace(/^DAY\s*/i,"").trim() || "기본";
-      if(!groups.has(playlistName)) groups.set(playlistName,[]);
-      groups.get(playlistName).push(newSentence({
-        order:Number(v("ORDER"))||i+1, lesson:rawLesson, english, korean:v("KOREAN"),
-        grammar:v("GRAMMAR"), structure:v("STRUCTURE"),
-        words:[
-          {word:v("WORD_1"),meaning:v("WORD_1_MEANING"),pronunciation:v("WORD_1_PRONUNCIATION"),pos:v("WORD_1_POS")},
-          {word:v("WORD_2"),meaning:v("WORD_2_MEANING"),pronunciation:v("WORD_2_PRONUNCIATION"),pos:v("WORD_2_POS")}
-        ]
-      }));
-    }
-    if(!groups.size) throw new Error("no valid rows");
-
-    const imported=[];
-    for(const [playlistName,sentences] of [...groups.entries()].sort((a,b)=>a[0].localeCompare(b[0],undefined,{numeric:true}))) {
-      // 같은 번호를 다시 가져오면 중복 생성하지 않고 새 내용으로 교체합니다.
-      let p=state.playlists.find(x=>x.name===playlistName);
-      if(!p) { p={id:uid(),name:playlistName,description:"",sentences:[]}; state.playlists.push(p); }
-      p.sentences=sentences.map((s,n)=>({...s,order:n+1}));
-      imported.push(p);
-    }
-    const first=imported[0];
-    if(first) {
-      state.currentPlaylistId=first.id;
-      state.currentSentenceId=first.sentences[0]?.id||null;
-      state.currentIndex=0;
-    }
-    return {playlistCount:imported.length,sentenceCount:imported.reduce((n,p)=>n+p.sentences.length,0)};
   }
 
   async function importFileToPlaylist(file,p) {
@@ -447,7 +425,7 @@
     }
     if(file.name.toLowerCase().endsWith(".csv")) {
       const rows=parseCSV(text); if(!rows.length)return;
-      const headers=rows[0].map(h=>h.trim().toUpperCase());
+      const headers=rows[0].map(h=>h.trim().replace(/^\uFEFF/,"").toUpperCase());
       p.sentences=rows.slice(1).filter(r=>r.some(Boolean)).map((r,i)=>{
         const v=(name)=>r[headers.indexOf(name)]??"";
         return newSentence({
@@ -563,7 +541,7 @@
   async function startPlaylistPractice() {
     const p=currentPlaylist(); if(!p?.sentences.length)return;
     let list=sortedSentences(p); if(state.reviewOnly)list=list.filter(s=>s.review);
-    if(state.playMode==="shuffle" || els.playModeSelect.value==="shuffle") list=shuffle([...list]);
+    if(els.sortSelect?.value==="shuffle") list=shuffle([...list]);
     await runQueue(list);
   }
 
@@ -571,7 +549,7 @@
     const p=currentPlaylist(); if(!p)return;
     let list=sortedSentences(p).filter(s=>state.selectedSentenceIds.includes(s.id));
     if(!list.length){toast("연습할 문장을 선택해 주세요.");return;}
-    if(state.playMode==="shuffle" || els.playModeSelect.value==="shuffle") list=shuffle(list);
+    if(els.sortSelect?.value==="shuffle") list=shuffle(list);
     switchView("studyView"); await runQueue(list);
   }
 

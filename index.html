@@ -201,11 +201,11 @@
   <dialog id="playlistDialog">
     <form method="dialog" class="dialog-card" id="playlistForm">
       <h3>플레이리스트 추가</h3>
-      <label>이름<input id="playlistNameInput" placeholder="직접 만들 때만 입력 (CSV는 자동 분류)" /></label>
+      <label>이름<input id="playlistNameInput" placeholder="예: 혜영쌤인스타기본" /></label>
       <label>파일 가져오기
         <input id="importFileInput" type="file" accept=".csv,.txt" />
       </label>
-      <p class="help">CSV의 LESSON 값이 DAY 001~100이면 001~100 플레이리스트로 자동 분리됩니다. TXT는 하나의 플레이리스트로 가져옵니다.</p>
+      <p class="help">입력한 제목 안에 CSV의 모든 문장이 들어갑니다. LESSON 값은 플레이리스트를 나누지 않고 위쪽 레슨 선택 항목으로 사용됩니다.</p>
       <div class="dialog-actions">
         <button value="cancel">취소</button>
         <button id="createPlaylistSubmit" value="default" class="primary-btn">추가</button>

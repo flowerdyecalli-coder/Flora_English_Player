@@ -46,3 +46,14 @@ dialog{border:0;border-radius:22px;padding:0;width:min(calc(100% - 28px),460px);
 .toast{position:fixed;left:50%;bottom:92px;transform:translate(-50%,20px);background:#111;color:#fff;border-radius:12px;padding:10px 14px;font-size:13px;opacity:0;pointer-events:none;transition:.2s;z-index:99;max-width:min(90%,420px);text-align:center}.toast.show{opacity:1;transform:translate(-50%,0)}
 .hidden{display:none!important}
 @media(max-width:390px){.english-text{font-size:22px}.quick-settings{grid-template-columns:1fr 1fr}.word-edit-grid{grid-template-columns:1fr}.transport{gap:7px}.round-btn{width:44px;height:44px}}
+
+/* playlist lesson filter */
+.lesson-toolbar{display:flex;align-items:center;gap:8px;margin:14px 0 8px;overflow-x:auto;padding-bottom:2px}
+.lesson-toolbar-count{flex:0 0 auto;background:#f1f2f4;border-radius:12px;padding:9px 12px;font-weight:800;color:#555}
+.lesson-toolbar select,.lesson-picker-btn{flex:0 0 auto;border:0;background:#e8f1f8;border-radius:12px;padding:10px 14px;font-weight:800;font-size:14px}
+.lesson-picker-panel{background:#f8f9fa;border:1px solid var(--line);border-radius:14px;padding:10px;margin:6px 0 12px}
+.lesson-checkbox-list{display:flex;gap:8px;flex-wrap:wrap;max-height:190px;overflow:auto}
+.lesson-option{display:flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:13px;font-weight:700}
+.lesson-option input{width:16px;height:16px}
+.sentence-lesson{margin-top:4px;font-size:12px;color:#9aa0a6}
+@media(max-width:520px){.lesson-toolbar{margin-left:-2px;margin-right:-2px}.lesson-toolbar select,.lesson-picker-btn{padding:9px 11px}.sentence-row{align-items:center}.sentence-body .en{font-size:17px;font-weight:800}.sentence-body .kr{font-size:14px;margin-top:3px}}
