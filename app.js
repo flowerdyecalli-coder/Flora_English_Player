@@ -111,7 +111,11 @@
     if (sort === "nameDesc") list.sort((a,b)=>b.english.localeCompare(a.english));
     if (sort === "lesson") list.sort((a,b)=>(a.lesson||"").localeCompare(b.lesson||"") || a.order-b.order);
     if (sort === "review") list.sort((a,b)=>Number(b.review)-Number(a.review) || a.order-b.order);
-    else if (sort === "order") list.sort((a,b)=>a.order-b.order);
+    else if (sort === "order" || sort === "asc") list.sort((a,b)=>a.order-b.order);
+    else if (sort === "desc") list.sort((a,b)=>b.order-a.order);
+    else if (sort === "shuffle") {
+      for (let i=list.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [list[i],list[j]]=[list[j],list[i]]; }
+    }
     return list;
   }
   function currentSentence() {
@@ -254,7 +258,7 @@
     els.sentenceList.addEventListener("change", handleSentenceCheck);
 
     els.sortSelect.addEventListener("change",renderPlaylistDetail);
-    els.playModeSelect.addEventListener("change",()=>{state.playMode=els.playModeSelect.value;saveState()});
+    if (els.playModeSelect) els.playModeSelect.addEventListener("change",()=>{state.playMode=els.playModeSelect.value;saveState()});
     $("#reviewOnlyBtn").addEventListener("click",()=>{state.reviewOnly=!state.reviewOnly;renderPlaylistDetail();toast(state.reviewOnly?"복습 문장만 표시합니다.":"전체 문장을 표시합니다.")});
     $("#playAllBtn").addEventListener("click",()=>startPlaylistPractice());
     $("#practiceSelectedBtn").addEventListener("click",()=>startSelectedPractice());
@@ -368,7 +372,7 @@
         saveState(); renderAll();
         els.playlistDialog.close(); $("#playlistForm").reset();
         toast(`${result.playlistCount}개 플레이리스트 · ${result.sentenceCount}개 문장을 가져왔습니다.`);
-      }).catch(err=>{console.error(err);toast("CSV 파일을 읽지 못했습니다.");});
+      }).catch(err=>{console.error(err);toast("CSV 파일을 읽지 못했습니다.");alert("CSV 파일을 읽지 못했습니다.\n" + (err?.message || err));});
       return;
     }
 
