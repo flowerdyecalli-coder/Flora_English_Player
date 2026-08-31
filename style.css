@@ -57,3 +57,8 @@ dialog{border:0;border-radius:22px;padding:0;width:min(calc(100% - 28px),460px);
 .lesson-option input{width:16px;height:16px}
 .sentence-lesson{margin-top:4px;font-size:12px;color:#9aa0a6}
 @media(max-width:520px){.lesson-toolbar{margin-left:-2px;margin-right:-2px}.lesson-toolbar select,.lesson-picker-btn{padding:9px 11px}.sentence-row{align-items:center}.sentence-body .en{font-size:17px;font-weight:800}.sentence-body .kr{font-size:14px;margin-top:3px}}
+
+.playlist-header-actions{display:flex;align-items:center;gap:8px}
+.playlist-delete-btn{border:1px solid #efcaca;background:#fff;color:#c62828;border-radius:12px;padding:10px 14px;font-weight:800}
+.playlist-delete-btn:disabled{opacity:.38;cursor:not-allowed}
+.playlist-check{width:20px;height:20px;flex:0 0 auto;accent-color:#20242c}

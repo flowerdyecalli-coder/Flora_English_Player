@@ -186,10 +186,12 @@
   }
 
   function renderPlaylists() {
+    state.selectedPlaylistIds = Array.isArray(state.selectedPlaylistIds) ? state.selectedPlaylistIds : [];
     els.playlistCards.innerHTML = state.playlists.length ? state.playlists.map(p=>{
       const reviewCount = p.sentences.filter(s=>s.review).length;
       const currentIdx = p.id===state.currentPlaylistId ? Math.max(0,p.sentences.findIndex(s=>s.id===state.currentSentenceId))+1 : 0;
       return `<article class="playlist-card" data-playlist-id="${p.id}">
+        <input class="playlist-check" type="checkbox" data-playlist-check="${p.id}" ${state.selectedPlaylistIds.includes(p.id)?"checked":""} aria-label="플레이리스트 선택">
         <button class="play-mini" data-action="play-playlist">▶</button>
         <div class="card-main" data-action="open-playlist">
           <h3>${escapeHtml(p.name)}</h3>
@@ -198,6 +200,12 @@
         <button class="menu" data-action="playlist-menu">⋮</button>
       </article>`;
     }).join("") : `<p class="muted">플레이리스트가 없습니다.</p>`;
+    const delBtn=$("#deletePlaylistsBtn");
+    if(delBtn){
+      const n=state.selectedPlaylistIds.length;
+      delBtn.disabled=n===0;
+      delBtn.textContent=n ? `삭제 (${n})` : "삭제";
+    }
   }
 
   function renderLessonPicker(p) {
@@ -248,6 +256,7 @@
     els.navBtns.forEach(btn=>btn.addEventListener("click",()=>switchView(btn.dataset.view)));
     $("#settingsBtn").addEventListener("click",()=>els.settingsDialog.showModal());
     $("#addPlaylistBtn").addEventListener("click",()=>els.playlistDialog.showModal());
+    $("#deletePlaylistsBtn").addEventListener("click", deleteSelectedPlaylists);
     $("#closePlaylistDetail").addEventListener("click",()=>els.playlistDetail.classList.add("hidden"));
     $("#addSentenceBtn").addEventListener("click",()=>openSentenceDialog());
     $("#editSentenceBtn").addEventListener("click",()=>openSentenceDialog(currentSentence()));
@@ -278,6 +287,14 @@
     $("#autoNextToggle").addEventListener("change",()=>{state.settings.autoNext=$("#autoNextToggle").checked;saveState()});
 
     els.playlistCards.addEventListener("click", handlePlaylistCardClick);
+    els.playlistCards.addEventListener("change", e=>{
+      const cb=e.target.closest(".playlist-check"); if(!cb)return;
+      const id=cb.dataset.playlistCheck;
+      state.selectedPlaylistIds=Array.isArray(state.selectedPlaylistIds)?state.selectedPlaylistIds:[];
+      if(cb.checked && !state.selectedPlaylistIds.includes(id)) state.selectedPlaylistIds.push(id);
+      if(!cb.checked) state.selectedPlaylistIds=state.selectedPlaylistIds.filter(x=>x!==id);
+      saveState(); renderPlaylists();
+    });
     els.sentenceList.addEventListener("click", handleSentenceListClick);
     els.sentenceList.addEventListener("change", handleSentenceCheck);
 
@@ -323,7 +340,24 @@
     if (viewId==="recordingsView") renderRecordings();
   }
 
+
+  function deleteSelectedPlaylists() {
+    const ids=Array.isArray(state.selectedPlaylistIds)?state.selectedPlaylistIds:[];
+    if(!ids.length){ toast("삭제할 플레이리스트를 선택해 주세요."); return; }
+    if(!confirm(`선택한 ${ids.length}개 플레이리스트를 삭제할까요?`)) return;
+    state.playlists=state.playlists.filter(p=>!ids.includes(p.id));
+    state.selectedPlaylistIds=[];
+    if(!state.playlists.some(p=>p.id===state.currentPlaylistId)){
+      state.currentPlaylistId=state.playlists[0]?.id||null;
+      state.currentSentenceId=state.playlists[0]?.sentences[0]?.id||null;
+      state.currentIndex=0;
+    }
+    saveState(); renderAll();
+    toast("선택한 플레이리스트를 삭제했습니다.");
+  }
+
   function handlePlaylistCardClick(e) {
+    if (e.target.closest(".playlist-check")) return;
     const card = e.target.closest(".playlist-card");
     if (!card) return;
     const p = state.playlists.find(x=>x.id===card.dataset.playlistId);
