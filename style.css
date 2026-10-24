@@ -62,3 +62,27 @@ dialog{border:0;border-radius:22px;padding:0;width:min(calc(100% - 28px),460px);
 .playlist-delete-btn{border:1px solid #efcaca;background:#fff;color:#c62828;border-radius:12px;padding:10px 14px;font-weight:800}
 .playlist-delete-btn:disabled{opacity:.38;cursor:not-allowed}
 .playlist-check{width:20px;height:20px;flex:0 0 auto;accent-color:#20242c}
+
+/* Compact portrait study screen; longer sentences remain scrollable. */
+@media(max-width:520px){
+  .app-shell{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+  .brand-header{height:56px;padding:8px 14px}
+  #studyView{padding:10px 12px}
+  .study-top{gap:8px}
+  .sentence-card{padding:16px;margin-top:8px}
+  .english-text{font-size:clamp(20px,5.8vw,25px);line-height:1.32;margin:0 0 10px;overflow-wrap:anywhere}
+  .korean-text{font-size:15px;line-height:1.5;margin:0;overflow-wrap:anywhere}
+  .player-card{padding:12px;margin-top:10px}
+  .transport{gap:8px;margin:14px 0}
+  .round-btn{width:44px;height:44px}
+  .round-btn.primary{width:54px;height:54px}
+  .quick-settings{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+  .quick-settings select{padding:8px 2px}
+  .player-actions{gap:6px;margin-top:10px;flex-wrap:nowrap}
+  .switch-row{gap:4px;font-size:12px;white-space:nowrap}
+  .player-actions select{min-width:0;padding:8px 4px;font-size:12px}
+  .player-actions .danger-btn{padding:9px 12px;white-space:nowrap}
+  .countdown{padding:8px 0}
+  .countdown strong{font-size:32px;margin-top:2px}
+  .bottom-nav{height:calc(60px + env(safe-area-inset-bottom))}
+}

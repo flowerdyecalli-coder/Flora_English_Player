@@ -54,7 +54,6 @@
     views: $$(".view"), navBtns: $$(".nav-btn"),
     currentPlaylistName: $("#currentPlaylistName"), sentenceCounter: $("#sentenceCounter"),
     favoriteBtn: $("#favoriteBtn"), englishText: $("#englishText"), koreanText: $("#koreanText"),
-    detailsBox: $("#detailsBox"), structureText: $("#structureText"), grammarText: $("#grammarText"), wordsText: $("#wordsText"),
     playStatus: $("#playStatus"), timerText: $("#timerText"), countdownArea: $("#countdownArea"), countdownNumber: $("#countdownNumber"), countdownLabel: $("#countdownLabel"),
     repeatSelect: $("#repeatSelect"), delaySelect: $("#delaySelect"), speedSelect: $("#speedSelect"), languageSelect: $("#languageSelect"),
     autoRecordToggle: $("#autoRecordToggle"), recordDurationSelect: $("#recordDurationSelect"),
@@ -156,7 +155,6 @@
       els.sentenceCounter.textContent = "0 / 0";
       els.englishText.textContent = "플레이리스트에서 문장을 추가해 주세요.";
       els.koreanText.textContent = "";
-      els.detailsBox.classList.add("hidden");
       els.favoriteBtn.textContent = "☆";
       return;
     }
@@ -169,20 +167,8 @@
     els.favoriteBtn.textContent = s.review ? "★" : "☆";
     els.favoriteBtn.classList.toggle("active", !!s.review);
 
-    const mode = state.settings.displayMode;
-    els.englishText.classList.toggle("hidden", mode === "kr");
-    els.koreanText.classList.toggle("hidden", mode === "en" || !s.korean);
-    $$(".display-mode").forEach(b=>b.classList.toggle("active", b.dataset.mode===mode));
-
-    els.structureText.textContent = s.structure || "등록된 정보 없음";
-    els.grammarText.textContent = s.grammar || "등록된 정보 없음";
-    const validWords = (s.words||[]).filter(w=>w.word || w.meaning || w.pronunciation || w.pos);
-    els.wordsText.innerHTML = validWords.length ? validWords.map(w => `
-      <div class="word-row">
-        <div class="word-main">${escapeHtml(w.word||"")}${w.meaning ? ` · ${escapeHtml(w.meaning)}` : ""}</div>
-        <div class="word-meta">${[w.pronunciation,w.pos].filter(Boolean).map(escapeHtml).join(" · ")}</div>
-      </div>`).join("") : `<div class="detail-content">등록된 정보 없음</div>`;
-    els.detailsBox.classList.toggle("hidden", !(s.structure || s.grammar || validWords.length));
+    els.englishText.classList.remove("hidden");
+    els.koreanText.classList.toggle("hidden", !s.korean);
   }
 
   function renderPlaylists() {
@@ -259,11 +245,7 @@
     $("#deletePlaylistsBtn").addEventListener("click", deleteSelectedPlaylists);
     $("#closePlaylistDetail").addEventListener("click",()=>els.playlistDetail.classList.add("hidden"));
     $("#addSentenceBtn").addEventListener("click",()=>openSentenceDialog());
-    $("#editSentenceBtn").addEventListener("click",()=>openSentenceDialog(currentSentence()));
 
-    $$(".display-mode").forEach(btn=>btn.addEventListener("click",()=>{
-      state.settings.displayMode = btn.dataset.mode; saveState(); renderStudy();
-    }));
 
     els.favoriteBtn.addEventListener("click",()=>toggleReview(currentSentence()?.id));
     $("#prevBtn").addEventListener("click",()=>moveSentence(-1));
