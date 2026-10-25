@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#ffffff" />
   <title>FLORA English Player</title>
-  <link rel="stylesheet" href="style.css?v=20261025-numbers" />
+  <link rel="stylesheet" href="style.css?v=20261025-stable-delay" />
 </head>
 <body>
   <div id="appShell" class="app-shell">
@@ -44,22 +44,23 @@
             <span id="timerText">00:00</span>
           </div>
 
-          <div class="speed-row"><label>◴ 속도 <select id="speedSelect" aria-label="재생 속도"></select></label></div>
           <div class="transport">
             <button id="prevBtn" class="round-btn" aria-label="이전 문장">▏◀</button>
-            <button id="recordBtn" class="round-btn record" aria-label="녹음">●</button>
+            <button id="recordBtn" class="round-btn record" aria-label="녹음"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg></button>
             <button id="playBtn" class="round-btn primary" aria-label="재생">▶</button>
             <button id="nextBtn" class="round-btn" aria-label="다음 문장">▶▕</button>
+            <button id="stopBtn" class="round-btn" aria-label="정지">■</button>
           </div>
           <div id="countdownArea" class="countdown hidden" role="status"><span id="countdownLabel">지연</span> <span id="countdownNumber">5초</span></div>
           <div class="quick-settings reference-settings">
-            <label class="setting-control"><select id="repeatSelect" aria-label="문장 재생 횟수">
+            <div class="setting-control"><span class="setting-value" data-value-for="repeatSelect"></span><div class="icon-select"><span class="setting-icon" aria-hidden="true">↶</span><select id="repeatSelect" aria-label="문장 재생 횟수">
               <option value="1">1회</option><option value="2">2회</option><option value="3" selected>3회</option><option value="4">4회</option><option value="5">5회</option><option value="6">6회</option><option value="7">7회</option><option value="8">8회</option><option value="9">9회</option><option value="10">10회</option><option value="infinite">무한</option>
-            </select><span class="setting-icon" aria-hidden="true">↶</span><span>횟수</span></label>
-            <label class="setting-control"><select id="delaySelect" aria-label="지연 시간"></select><span class="setting-icon" aria-hidden="true">◴</span><span>지연</span></label>
-            <label class="setting-control"><select id="advanceSelect" aria-label="반복 후 진행"><option value="next">연속</option><option value="once">1문장</option></select><span class="setting-icon" aria-hidden="true">⇄</span><span>반복</span></label>
-            <button id="infoBtn" class="setting-control" type="button" aria-label="설명 표시 전환" aria-pressed="true"><span class="setting-value">전체</span><span class="setting-icon" aria-hidden="true">ⓘ</span><span>정보</span></button>
-            <label class="setting-control"><select id="languageSelect" aria-label="재생 언어"><option value="EN">영</option><option value="KR">한</option><option value="EN_KR" selected>영→한</option><option value="KR_EN">한→영</option></select><span class="setting-icon" aria-hidden="true">文A</span><span>언어</span></label>
+            </select></div><span class="setting-caption">횟수</span></div>
+            <div class="setting-control"><span class="setting-value" data-value-for="delaySelect"></span><div class="icon-select"><span class="setting-icon" aria-hidden="true">◴</span><select id="delaySelect" aria-label="지연 시간"></select></div><span class="setting-caption">지연</span></div>
+            <div class="setting-control"><span class="setting-value" data-value-for="advanceSelect"></span><div class="icon-select"><span class="setting-icon" aria-hidden="true">⇄</span><select id="advanceSelect" aria-label="반복 후 진행"><option value="next">연속</option><option value="once">1문장</option></select></div><span class="setting-caption">연속</span></div>
+            <div class="setting-control"><span class="setting-value" data-value-for="speedSelect"></span><div class="icon-select"><span class="setting-icon" aria-hidden="true">◴</span><select id="speedSelect" aria-label="재생 속도"></select></div><span class="setting-caption">속도</span></div>
+            <div class="setting-control"><span class="setting-value" id="infoValue">전체</span><button id="infoBtn" type="button" class="icon-action setting-icon" aria-label="설명 표시 전환" aria-pressed="true">ⓘ</button><span class="setting-caption">정보</span></div>
+            <div class="setting-control"><span class="setting-value" data-value-for="languageSelect"></span><div class="icon-select"><span class="setting-icon" aria-hidden="true">文A</span><select id="languageSelect" aria-label="재생 언어"><option value="EN">영</option><option value="KR">한</option><option value="EN_KR" selected>영→한</option><option value="KR_EN">한→영</option></select></div><span class="setting-caption">언어</span></div>
           </div>
 
           <div class="player-actions">
@@ -69,7 +70,6 @@
               <option value="7">7초</option><option value="10">10초</option>
               <option value="manual">직접 종료</option>
             </select>
-            <button id="stopBtn" class="danger-btn">정지</button>
           </div>
         </section>
       </section>
@@ -105,7 +105,10 @@
               <select id="lessonSelect" aria-label="레슨 선택"><option value="">전체 레슨</option></select>
             </label>
             <div class="lesson-select-field number-select-field">순번
-              <div id="numberPicker" class="number-picker" role="group" aria-label="순번 다중 선택"></div>
+              <details id="numberDropdown" class="number-dropdown">
+                <summary id="numberDropdownSummary">전체 순번</summary>
+                <div id="numberPicker" class="number-picker" role="group" aria-label="순번 다중 선택"></div>
+              </details>
             </div>
             <select id="sortSelect" aria-label="정렬 방식">
               <option value="asc">↑</option>
@@ -225,6 +228,6 @@
   </dialog>
 
   <div id="toast" class="toast" aria-live="polite"></div>
-  <script src="app.js?v=20261025-numbers"></script>
+  <script src="app.js?v=20261025-stable-delay"></script>
 </body>
 </html>

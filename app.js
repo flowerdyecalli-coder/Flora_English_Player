@@ -245,6 +245,7 @@
     const matching = selected ? p.sentences.filter(s=>lessonLabel(s.lesson)===selected) : p.sentences;
     const numbers=[...new Set(matching.map(s=>sentenceNumber(s)))].sort((a,b)=>a-b);
     const chosen=getSelectedNumbers();
+    $("#numberDropdownSummary").textContent=chosen.length?chosen.map(n=>`${n}번`).join(", "):"전체 순번";
     els.numberPicker.innerHTML=`<button type="button" class="number-all ${chosen.length?"":"active"}" data-number-all>전체</button>`+
       numbers.map(n=>`<label class="number-option"><input type="checkbox" data-number="${n}" ${chosen.includes(String(n))?"checked":""}>${n}번</label>`).join("");
   }
@@ -258,36 +259,24 @@
     saveState();renderPlaylistDetail();
   }
   function bindNumberPicker(){
-    let drag=null;
-    const paint=input=>{
-      if(!input||drag.visited.has(input.dataset.number))return;
-      drag.visited.add(input.dataset.number);
-      const selected=new Set(getSelectedNumbers());
-      if(drag.checked)selected.add(input.dataset.number);else selected.delete(input.dataset.number);
-      state.selectedNumbers=[...selected];state.selectedNumber="";
-      input.checked=drag.checked;
-    };
+    const dropdown=$("#numberDropdown");
     els.numberPicker.addEventListener("click",e=>{
-      if(e.target.closest("[data-number-all]")){state.selectedNumbers=[];state.selectedNumber="";commitNumberSelection();}
+      if(e.target.closest("[data-number-all]")){
+        state.selectedNumbers=[];state.selectedNumber="";commitNumberSelection();
+      }
     });
     els.numberPicker.addEventListener("change",e=>{
       const input=e.target.closest("[data-number]");if(!input)return;
+      const number=input.dataset.number;
       const selected=new Set(getSelectedNumbers());
-      if(input.checked)selected.add(input.dataset.number);else selected.delete(input.dataset.number);
-      state.selectedNumbers=[...selected];state.selectedNumber="";commitNumberSelection();
+      if(input.checked)selected.add(number);else selected.delete(number);
+      state.selectedNumbers=[...selected].sort((a,b)=>Number(a)-Number(b));state.selectedNumber="";
+      commitNumberSelection();
+      // Keep keyboard focus after the options are refreshed.
+      els.numberPicker.querySelector(`[data-number="${number}"]`)?.focus({preventScroll:true});
     });
-    els.numberPicker.addEventListener("pointerdown",e=>{
-      if(e.button!==0)return;
-      const input=e.target.closest(".number-option")?.querySelector("input");if(!input)return;
-      e.preventDefault();drag={checked:!input.checked,visited:new Set(),pointerId:e.pointerId};paint(input);
-    });
-    document.addEventListener("pointermove",e=>{
-      if(!drag||drag.pointerId!==e.pointerId)return;
-      const option=document.elementFromPoint(e.clientX,e.clientY)?.closest(".number-option");
-      if(option&&els.numberPicker.contains(option))paint(option.querySelector("input"));
-    });
-    const finish=e=>{if(!drag||drag.pointerId!==e.pointerId)return;drag=null;commitNumberSelection();};
-    document.addEventListener("pointerup",finish);document.addEventListener("pointercancel",finish);
+    document.addEventListener("click",e=>{if(!dropdown.contains(e.target))dropdown.open=false;});
+    dropdown.addEventListener("keydown",e=>{if(e.key==="Escape"){dropdown.open=false;$("#numberDropdownSummary").focus();}});
   }
 
   function renderPlaylistDetail() {
@@ -325,6 +314,7 @@
     els.autoRecordToggle.checked = !!state.settings.autoRecord;
     els.recordDurationSelect.value = state.settings.recordDuration;
     $("#autoNextToggle").checked = !!state.settings.autoNext;
+    syncControlValues();
   }
 
   function bindEvents() {
@@ -342,7 +332,7 @@
     $("#prevBtn").addEventListener("click",()=>moveSentence(-1));
     $("#nextBtn").addEventListener("click",()=>moveSentence(1));
     $("#playBtn").addEventListener("click",()=>{if(session.playing||session.pauseSpeech)togglePause();else startPractice();});
-    $("#advanceSelect").addEventListener("change",()=>{state.settings.autoNext=$("#advanceSelect").value==="next";$("#autoNextToggle").checked=state.settings.autoNext;saveState();});
+    $("#advanceSelect").addEventListener("change",()=>{state.settings.autoNext=$("#advanceSelect").value==="next";$("#autoNextToggle").checked=state.settings.autoNext;syncControlValues();saveState();});
     $("#infoBtn").addEventListener("click",()=>{state.settings.showInfo=state.settings.showInfo===false;saveState();renderStudy();syncInfoButton();});
     $("#stopBtn").addEventListener("click",stopEverything);
     $("#recordBtn").addEventListener("click",toggleManualRecording);
@@ -358,7 +348,7 @@
       });
     });
     els.autoRecordToggle.addEventListener("change",()=>{state.settings.autoRecord=els.autoRecordToggle.checked;saveState()});
-    $("#autoNextToggle").addEventListener("change",()=>{state.settings.autoNext=$("#autoNextToggle").checked;$("#advanceSelect").value=state.settings.autoNext?"next":"once";saveState()});
+    $("#autoNextToggle").addEventListener("change",()=>{state.settings.autoNext=$("#autoNextToggle").checked;$("#advanceSelect").value=state.settings.autoNext?"next":"once";syncControlValues();saveState()});
 
     els.playlistCards.addEventListener("click", handlePlaylistCardClick);
     els.playlistCards.addEventListener("change", e=>{
@@ -380,6 +370,7 @@
       saveState(); renderPlaylistDetail();
     });
     bindNumberPicker();
+    document.querySelectorAll(".icon-select select").forEach(select=>select.addEventListener("change",syncControlValues));
     if (els.playModeSelect) els.playModeSelect.addEventListener("change",()=>{state.playMode=els.playModeSelect.value;saveState()});
     $("#reviewOnlyBtn").addEventListener("click",()=>{state.reviewOnly=!state.reviewOnly;renderPlaylistDetail();toast(state.reviewOnly?"복습 문장만 표시합니다.":"전체 문장을 표시합니다.")});
     $("#playAllBtn").addEventListener("click",()=>startPlaylistPractice());
@@ -813,10 +804,16 @@
     });
   }
 
+  function syncControlValues(){
+    document.querySelectorAll("[data-value-for]").forEach(span=>{
+      const select=document.getElementById(span.dataset.valueFor);
+      span.textContent=select.id==="speedSelect"?`×${select.value}`:(select.selectedOptions[0]?.textContent||"");
+    });
+  }
   function syncInfoButton(){
     const shown=state.settings.showInfo!==false;
     $("#infoBtn").setAttribute("aria-pressed",String(shown));
-    $("#infoBtn .setting-value").textContent=shown?"전체":"숨김";
+    $("#infoValue").textContent=shown?"전체":"숨김";
   }
   function setStatus(text){
     els.playStatus.textContent=text;
@@ -832,6 +829,7 @@
     button.classList.toggle("active",mode==="recording");
     button.classList.toggle("record-label",mode!=="idle");
     button.textContent=mode==="recording"?"녹음 중":mode==="complete"?"녹음 완료":mode==="saving"?"저장 중":"●";
+    if(mode==="idle")button.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg>';
     button.setAttribute("aria-label",mode==="recording"?"녹음 중, 누르면 종료":mode==="complete"?"녹음 완료":"녹음");
     button.setAttribute("aria-pressed",String(mode==="recording"));
     if(mode==="complete")recordButtonTimer=setTimeout(()=>setRecordButton("idle"),1200);

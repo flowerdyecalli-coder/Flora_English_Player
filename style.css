@@ -135,3 +135,34 @@ dialog{border:0;border-radius:22px;padding:0;width:min(calc(100% - 28px),460px);
 .number-option input{accent-color:#2d6985;width:16px;height:16px;margin:0}
 
 .lesson-toolbar .number-select-field{flex:1 1 100%;order:5}
+
+/* Centered playback and icon-only setting targets. */
+.player-card .transport{grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}
+.player-card .round-btn{width:44px;height:48px;font-size:22px}
+.player-card .round-btn.primary{width:58px;height:58px}
+.round-btn.record svg{display:block;width:27px;height:27px;margin:auto;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.player-card .reference-settings{grid-template-columns:repeat(6,minmax(0,1fr));gap:2px}
+.reference-settings .setting-control{cursor:default;gap:5px}
+.reference-settings .setting-value{height:23px;line-height:23px;font-size:11px;pointer-events:none}
+.reference-settings .setting-caption{pointer-events:none;font-size:10px}
+.icon-select{position:relative;width:100%;height:42px;max-width:48px}
+.reference-settings .icon-select .setting-icon{width:100%;height:42px;font-size:29px}
+.reference-settings .icon-select select{position:absolute;inset:0;width:100%;height:42px;opacity:0;margin:0;padding:0;cursor:pointer}
+.reference-settings .icon-action{width:100%;max-width:48px;height:42px;border:0;background:transparent;padding:0;cursor:pointer;font-size:29px}
+.icon-select:focus-within{outline:2px solid var(--control-blue);border-radius:8px}
+
+/* Compact multiselect dropdown for sentence numbers. */
+.lesson-toolbar .number-select-field{flex:1 1 125px;order:0;max-width:220px}
+.number-dropdown{position:relative;min-width:120px;width:100%}
+.number-dropdown summary{display:flex;align-items:center;justify-content:space-between;gap:8px;list-style:none;cursor:pointer;background:#e8f1f8;border:1px solid #d5e1ea;border-radius:10px;padding:9px 10px;font-size:13px;font-weight:750;color:#365369;min-height:38px}
+.number-dropdown summary::-webkit-details-marker{display:none}
+.number-dropdown summary::after{content:"▾";flex-shrink:0}
+.number-dropdown[open] summary::after{content:"▴"}
+.number-dropdown .number-picker{position:absolute;top:calc(100% + 5px);left:0;z-index:40;display:flex;flex-direction:column;flex-wrap:nowrap;gap:3px;width:100%;min-width:140px;max-height:260px;overflow-y:auto;background:#fff;border:1px solid #d5e1ea;border-radius:12px;padding:7px;box-shadow:0 8px 24px #0002;touch-action:pan-y}
+.number-dropdown:not([open]) .number-picker{display:none}
+.number-dropdown .number-option,.number-dropdown .number-all{justify-content:flex-start;min-height:38px;width:100%;border:0;padding:8px 10px;gap:9px}
+.number-dropdown summary:focus-visible{outline:2px solid #2d6985;outline-offset:2px}
+
+/* Reserve the delay line even while its text is hidden. */
+.player-card #countdownArea{display:block!important;height:20px;min-height:20px;max-height:20px;line-height:20px;padding:0;margin:0 0 8px;overflow:hidden;white-space:nowrap;visibility:visible}
+.player-card #countdownArea.hidden{display:block!important;visibility:hidden}
