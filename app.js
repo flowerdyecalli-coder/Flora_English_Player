@@ -465,9 +465,13 @@
 
   function moveSentence(delta) {
     const p=currentPlaylist(); if(!p?.sentences.length)return;
-    let idx=p.sentences.findIndex(s=>s.id===state.currentSentenceId);
-    idx=(idx+delta+p.sentences.length)%p.sentences.length;
-    state.currentSentenceId=p.sentences[idx].id; state.currentIndex=idx; saveState(); renderStudy();
+    const list=state.reviewOnly ? sortedSentences(p).filter(s=>s.review) : p.sentences;
+    if(!list.length)return;
+    let idx=list.findIndex(s=>s.id===state.currentSentenceId);
+    idx=(idx+delta+list.length)%list.length;
+    state.currentSentenceId=list[idx].id;
+    state.currentIndex=p.sentences.findIndex(s=>s.id===state.currentSentenceId);
+    saveState(); renderStudy();
   }
 
   function createPlaylistFromDialog(e) {
@@ -588,7 +592,15 @@
   }
 
   async function startPractice(queue=null) {
+    if(session.paused){togglePause();return;}
     if(session.playing){toast("이미 재생 중입니다.");return;}
+    if(state.reviewOnly){
+      const list=sortedSentences().filter(s=>s.review);
+      if(!list.length){toast("별표 표시한 복습 문장이 없습니다.");return;}
+      const index=list.findIndex(s=>s.id===state.currentSentenceId);
+      await runQueue(index>=0 ? list.slice(index) : list);
+      return;
+    }
     const s=currentSentence(); if(!s)return;
     session.stopRequested=false; session.paused=false; session.playing=true;
     session.currentPlayQueue=queue;
@@ -689,48 +701,51 @@
     return new Promise((resolve,reject)=>{
       if(!text){resolve();return;}
       if(session.stopRequested){reject(new Error("STOP"));return;}
-      if(!prepareSpeech()) {
-        toast("이 브라우저에서는 음성 재생을 지원하지 않습니다.");
-        resolve(); return;
-      }
-
-      let finished=false;
-      let watchdog, launchTimer;
+      if(!prepareSpeech()){toast("이 브라우저에서는 음성 재생을 지원하지 않습니다.");resolve();return;}
+      let finished=false, attempt=0, active=false, elapsed=0, last=Date.now(), launchTimer, clock;
       const cancel=()=>finish(new Error("STOP"));
-      const finish=(err=null)=>{
-        if(finished)return; finished=true; clearTimeout(watchdog); clearTimeout(launchTimer);
-        playbackCancellations.delete(cancel);
-        if(err) reject(err); else resolve();
-      };
-      playbackCancellations.add(cancel);
-      const u=new SpeechSynthesisUtterance(text);
-      u.lang=lang; u.rate=Number(state.settings.speed)||0.8;
-      const voice=chooseVoice(lang); if(voice)u.voice=voice;
-      u.onstart=()=>setStatus("🎧 재생 중");
-      u.onend=()=>finish();
-      u.onerror=()=>session.stopRequested ? finish(new Error("STOP")) : finish();
-
-      // 모바일 Chrome/Safari에서 cancel 직후 speak가 먹히지 않는 현상을 줄입니다.
-      try { speechSynthesis.cancel(); speechSynthesis.resume(); } catch {}
-      launchTimer=setTimeout(()=>{
+      const finish=(err)=>{
         if(finished)return;
-        if(session.stopRequested){finish(new Error("STOP"));return;}
-        try { speechSynthesis.speak(u); } catch(e) { console.warn(e); finish(); }
-      },90);
-
-      // 일부 모바일에서 onend가 오지 않아 전체 재생이 멈추는 것을 방지합니다.
-      const estimated=Math.max(4000, Math.min(30000, text.length*180/(Number(state.settings.speed)||0.8)));
-      watchdog=setTimeout(()=>{
-        try{speechSynthesis.cancel();}catch{}
-        finish();
-      },estimated);
+        finished=true;attempt++;clearTimeout(launchTimer);clearInterval(clock);
+        playbackCancellations.delete(cancel);
+        if(session.pauseSpeech===pause){session.pauseSpeech=null;session.resumeSpeech=null;}
+        if(err)reject(err);else resolve();
+      };
+      const start=()=>{
+        if(finished||session.paused)return;
+        const id=++attempt;
+        const u=new SpeechSynthesisUtterance(text);
+        u.lang=lang;u.rate=Number(state.settings.speed)||0.8;
+        const voice=chooseVoice(lang);if(voice)u.voice=voice;
+        u.onstart=()=>{if(id===attempt&&!session.paused)setStatus("🎧 재생 중");};
+        u.onend=()=>{if(id===attempt&&!session.paused)finish();};
+        u.onerror=()=>{if(id===attempt&&!session.paused)finish(session.stopRequested?new Error("STOP"):undefined);};
+        active=true;elapsed=0;last=Date.now();
+        try{speechSynthesis.resume();speechSynthesis.speak(u);}catch(e){finish(e);}
+      };
+      // Native pause is unreliable on some mobile browsers. Resume the current utterance.
+      const pause=()=>{attempt++;active=false;clearTimeout(launchTimer);try{speechSynthesis.cancel();}catch{}};
+      session.pauseSpeech=pause;session.resumeSpeech=start;
+      playbackCancellations.add(cancel);
+      const estimated=Math.max(4000,Math.min(30000,text.length*180/(Number(state.settings.speed)||0.8)));
+      clock=setInterval(()=>{
+        const now=Date.now();
+        if(active&&!session.paused)elapsed+=now-last;
+        last=now;
+        if(elapsed>=estimated){attempt++;try{speechSynthesis.cancel();}catch{}finish();}
+      },100);
+      try{speechSynthesis.cancel();}catch{}
+      launchTimer=setTimeout(start,90);
     });
   }
 
   function togglePause() {
-    if(!session.playing)return;
-    if(!session.paused){speechSynthesis.pause();session.paused=true;setStatus("Ⅱ 일시정지")}
-    else{speechSynthesis.resume();session.paused=false;setStatus("🎧 재생 중")}
+    if(!session.playing&&!session.pauseSpeech)return;
+    session.paused=!session.paused;
+    const button=$("#pauseBtn");
+    if(button){button.textContent=session.paused?"▶":"Ⅱ";button.setAttribute("aria-label",session.paused?"재개":"일시정지");}
+    if(session.paused){session.pauseSpeech?.();setStatus("Ⅱ 일시정지");}
+    else{session.resumeSpeech?.();setStatus(session.pauseSpeech?"🎧 재생 중":"지연 중");}
   }
 
   function stopEverything() {
@@ -741,21 +756,26 @@
     document.querySelectorAll("audio").forEach(audio=>audio.pause());
     if(session.timer){clearTimeout(session.timer);session.timer=null;}
     if(session.mediaRecorder?.state==="recording") session.mediaRecorder.stop();
+    const pauseButton=$("#pauseBtn");if(pauseButton){pauseButton.textContent="Ⅱ";pauseButton.setAttribute("aria-label","일시정지");}
     els.countdownArea.classList.add("hidden"); setStatus("정지");
   }
 
   function countdown(seconds) {
     return new Promise((resolve,reject)=>{
-      const cancel=()=>{clearTimeout(session.timer);playbackCancellations.delete(cancel);reject(new Error("STOP"));};
+      let remaining=Math.max(0,Number(seconds))*1000,last=Date.now(),timer,finished=false;
+      const finish=(err)=>{if(finished)return;finished=true;clearInterval(timer);playbackCancellations.delete(cancel);els.countdownArea.classList.add("hidden");if(err)reject(err);else resolve();};
+      const cancel=()=>finish(new Error("STOP"));
       playbackCancellations.add(cancel);
-      els.countdownArea.classList.remove("hidden"); els.countdownLabel.textContent="따라 말해보세요."; setStatus("⏱ 따라 말하기");
-      let left=seconds; els.countdownNumber.textContent=left;
-      const tick=()=>{
-        if(session.stopRequested){els.countdownArea.classList.add("hidden");cancel();return;}
-        if(left<=0){playbackCancellations.delete(cancel);els.countdownArea.classList.add("hidden");resolve();return;}
-        els.countdownNumber.textContent=left--;
-        session.timer=setTimeout(tick,1000);
-      }; tick();
+      els.countdownArea.classList.remove("hidden");els.countdownLabel.textContent="지연";
+      els.countdownNumber.textContent=`${Math.ceil(remaining/1000)}초`;setStatus("지연 중");
+      timer=setInterval(()=>{
+        const now=Date.now();
+        if(session.stopRequested){cancel();return;}
+        if(!session.paused)remaining-=now-last;
+        last=now;
+        els.countdownNumber.textContent=`${Math.max(0,Math.ceil(remaining/1000))}초`;
+        if(remaining<=0)finish();
+      },100);
     });
   }
 

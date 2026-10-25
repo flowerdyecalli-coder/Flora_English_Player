@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#ffffff" />
   <title>FLORA English Player</title>
-  <link rel="stylesheet" href="style.css?v=20261025-2" />
+  <link rel="stylesheet" href="style.css?v=20261025-pause" />
 </head>
 <body>
   <div id="appShell" class="app-shell">
@@ -44,17 +44,17 @@
             <span id="timerText">00:00</span>
           </div>
 
-          <div id="countdownArea" class="countdown hidden">
-            <div id="countdownLabel">따라 말해보세요.</div>
-            <strong id="countdownNumber">5</strong>
-          </div>
-
           <div class="transport">
             <button id="prevBtn" class="round-btn" aria-label="이전">◀</button>
             <button id="recordBtn" class="round-btn record" aria-label="녹음">●</button>
             <button id="playBtn" class="round-btn primary" aria-label="재생">▶</button>
             <button id="pauseBtn" class="round-btn" aria-label="일시정지">Ⅱ</button>
             <button id="nextBtn" class="round-btn" aria-label="다음">▶|</button>
+          </div>
+
+          <div id="countdownArea" class="countdown hidden" role="status">
+            <span id="countdownLabel">지연</span>
+            <span id="countdownNumber">5초</span>
           </div>
 
           <div class="quick-settings">
@@ -245,6 +245,6 @@
   </dialog>
 
   <div id="toast" class="toast" aria-live="polite"></div>
-  <script src="app.js?v=20261025-2"></script>
+  <script src="app.js?v=20261025-pause"></script>
 </body>
 </html>

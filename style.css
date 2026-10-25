@@ -98,3 +98,7 @@ dialog{border:0;border-radius:22px;padding:0;width:min(calc(100% - 28px),460px);
 .description-label{font-size:12px;font-weight:800;color:#6b7280;margin-bottom:4px}
 .description-text{white-space:pre-line;font-size:13px;line-height:1.45;color:#434c57;max-height:4.35em;overflow-y:auto;overflow-wrap:anywhere}
 @media(max-width:390px){.lesson-toolbar{gap:5px}.lesson-select-field select{font-size:12px;padding:9px 2px}.lesson-toolbar-count{padding:8px 4px}}
+
+/* Small delay text directly below the playback controls. */
+.player-card .countdown{padding:0;margin:-4px 0 10px;text-align:center;font-size:11px;line-height:1.4;color:var(--muted)}
+.player-card .countdown #countdownNumber{display:inline;font-size:11px;font-weight:400;margin:0 0 0 3px}
