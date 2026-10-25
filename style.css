@@ -269,3 +269,21 @@ dialog{border:0;border-radius:22px;padding:0;width:min(calc(100% - 28px),460px);
 .round-btn.record .mic-off-cross{stroke-width:2.6}
 .round-btn.record.record-label svg{width:23px;height:23px;margin:0}
 .record-state-label{display:block;font-size:10px;font-weight:700;line-height:1.15;white-space:nowrap}
+
+.brand-header{height:auto;min-height:72px;flex-wrap:wrap;row-gap:5px}
+.data-usage-meter{flex:0 0 100%;width:100%;border:0;padding:3px 0;background:transparent;text-align:left;font-size:13px;line-height:1.4;color:#557381;cursor:pointer}
+@media(max-width:520px){.brand-header{height:auto;min-height:80px}.data-usage-meter{font-size:13px}}
+@media(orientation:landscape) and (max-height:600px) and (pointer:coarse){.brand-header{height:auto;min-height:64px;padding-top:5px;padding-bottom:5px}.data-usage-meter{font-size:12px;padding:0}}
+
+/* Full-width landscape sentences without split columns. */
+.brand-header{min-height:72px;row-gap:0}
+@media(max-width:520px){.brand-header{min-height:56px}}
+@media(orientation:landscape) and (max-height:600px) and (pointer:coarse){
+  .brand-header{min-height:46px}
+  #studyView.active{display:block}
+  #studyView .study-top{margin-bottom:8px}
+  #studyView .sentence-card{width:100%;margin:0;padding:14px 16px}
+  #studyView .player-card{width:100%;margin-top:10px}
+  #studyView .english-text{display:block;white-space:nowrap;word-break:normal;overflow-wrap:normal;overflow-x:hidden;max-width:100%;font-size:28px;line-height:1.5;margin:0 0 8px;padding:0 0 3px;touch-action:pan-x pinch-zoom}
+  #studyView .korean-text{white-space:nowrap;overflow-x:hidden;max-width:100%;font-size:19px;line-height:1.5;touch-action:pan-x pinch-zoom}
+}

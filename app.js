@@ -185,6 +185,7 @@
   }
 
   function renderStudy() {
+    requestAnimationFrame(fitLandscapeSentences);
     const p = currentPlaylist();
     const s = currentSentence();
     els.currentPlaylistName.textContent = p?.name || "플레이리스트 없음";
@@ -320,6 +321,8 @@
 
   function bindEvents() {
     bindSwipeNavigation();
+    window.addEventListener("resize",()=>requestAnimationFrame(fitLandscapeSentences));
+    document.fonts?.ready.then(()=>requestAnimationFrame(fitLandscapeSentences));
     document.addEventListener("visibilitychange",()=>{if(document.hidden)stopEverything();});
     window.addEventListener("pagehide",stopEverything);
     els.navBtns.forEach(btn=>btn.addEventListener("click",()=>switchView(btn.dataset.view)));
@@ -402,6 +405,19 @@
     });
   }
 
+  function fitLandscapeSentences(){
+    const landscape=window.matchMedia("(orientation:landscape) and (max-height:600px) and (pointer:coarse)").matches;
+    for(const [element,base] of [[els.englishText,28],[els.koreanText,19]]){
+      element.style.fontSize="";
+      if(!landscape||!element.clientWidth||!element.textContent)continue;
+      element.style.fontSize=`${base}px`;
+      const available=element.clientWidth-2;
+      if(element.scrollWidth>available){
+        element.style.fontSize=`${Math.max(1,Math.floor(base*available/element.scrollWidth*10)/10)}px`;
+      }
+    }
+  }
+
   function swipeDestination(viewId,dx,dy){
     if(Math.abs(dx)<48||Math.abs(dx)<Math.abs(dy)*1.4)return null;
     if(viewId==="studyView"&&dx<0)return "playlistView";
@@ -414,6 +430,8 @@
     const begin=(target,x,y,id)=>{
       gesture=null;
       if(document.querySelector("dialog[open]")||target.closest(excluded))return;
+      const text=target.closest(".english-text,.korean-text");
+      if(text&&text.scrollWidth>text.clientWidth+1)return;
       const view=target.closest(".view.active");
       if(!view||!["studyView","playlistView"].includes(view.id))return;
       gesture={x,y,id,view:view.id,vertical:false};
@@ -918,7 +936,7 @@
     button.classList.toggle("active",mode==="recording");
     button.classList.toggle("record-label",mode!=="idle");
     const recording=mode==="recording";
-    const label=recording?"녹음 중":mode==="complete"?"녹음 완료":mode==="saving"?"저장 중":"";
+    const label=recording?"녹음 중":mode==="complete"?"녹음 완료":mode==="saving"?"저장 중":mode==="starting"?"권한 확인":"";
     button.innerHTML=(recording?'<svg viewBox="0 0 28 28" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg>':'<svg viewBox="0 0 28 28" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 12 5M19 10v2M12 19v3M8 22h8"/><path class="mic-off-cross" d="M20 19l6 6M26 19l-6 6"/></svg>')+(label?`<span class="record-state-label">${label}</span>`:"");
     button.setAttribute("aria-label",recording?"녹음 중, 누르면 종료":"녹음 꺼짐, 누르면 시작");
     button.title=recording?"녹음 중":"녹음 안 함";
@@ -931,27 +949,45 @@
     if(session.mediaRecorder?.state==="recording"){
       session.recordingSaving=true;setRecordButton("saving");session.mediaRecorder.stop();return;
     }
-    session.recordingStarting=true;
+    if(session.playing||session.pauseSpeech)stopEverything();
+    session.recordingStarting=true;setRecordButton("starting");setStatus("마이크 권한을 확인하고 있습니다.");
     try{await startRecording(null,currentSentence());}
-    catch(err){console.error(err);setRecordButton("idle");setStatus("녹음을 시작하지 못했습니다.");toast("마이크 권한과 연결 상태를 확인해 주세요.");}
+    catch(err){
+      console.error(err);setRecordButton("idle");
+      const message=recordingErrorMessage(err);setStatus(message);toast(message);
+    }
     finally{session.recordingStarting=false;}
   }
 
+  function recordingErrorMessage(error){
+    if(error?.message==="STOP")return "녹음 취소";
+    if(["NotAllowedError","PermissionDeniedError","SecurityError"].includes(error?.name))return "마이크 권한이 꺼져 있습니다. 주소창 옆 사이트 설정에서 마이크를 허용해 주세요.";
+    if(["NotFoundError","DevicesNotFoundError"].includes(error?.name))return "사용할 마이크를 찾지 못했습니다. 마이크 연결을 확인해 주세요.";
+    if(["NotReadableError","TrackStartError"].includes(error?.name))return "마이크를 사용하지 못했습니다. 다른 녹음·통화 앱을 종료하고 다시 눌러 주세요.";
+    return error?.message||"녹음을 시작하지 못했습니다. 브라우저의 마이크 권한을 확인해 주세요.";
+  }
   async function startRecording(durationMs=null,sentence=null) {
     if(session.mediaRecorder?.state==="recording")return;
-    if(speechSynthesis.speaking) speechSynthesis.cancel();
+    if(!navigator.mediaDevices?.getUserMedia)throw new Error("이 화면에서는 마이크를 사용할 수 없습니다. 보안 연결된 주소를 크롬 또는 사파리에서 열어 주세요.");
+    const Recorder=window.MediaRecorder;
+    if(!Recorder)throw new Error("이 브라우저는 녹음을 지원하지 않습니다. 크롬 또는 사파리에서 다시 열어 주세요.");
+    const generation=playbackGeneration;
+    try{if(window.speechSynthesis?.speaking)window.speechSynthesis.cancel();}catch{}
     const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-    session.mediaStream=stream; session.chunks=[];
-    const options={};
-    const preferred=["audio/webm;codecs=opus","audio/webm","audio/mp4"];
-    const mime=preferred.find(x=>MediaRecorder.isTypeSupported?.(x));
-    if(mime)options.mimeType=mime;
-    const rec=new MediaRecorder(stream,options);
+    if(generation!==playbackGeneration){stream.getTracks().forEach(track=>track.stop());throw new Error("STOP");}
+    let rec;
+    try{
+      const preferred=["audio/webm;codecs=opus","audio/mp4","audio/webm"];
+      const mime=typeof Recorder.isTypeSupported==="function"?preferred.find(type=>Recorder.isTypeSupported(type)):null;
+      try{rec=mime?new Recorder(stream,{mimeType:mime}):new Recorder(stream);}catch{rec=new Recorder(stream);}
+    }catch(error){stream.getTracks().forEach(track=>track.stop());throw error;}
+    session.mediaStream=stream;session.chunks=[];
+    const chunks=session.chunks;
     session.mediaRecorder=rec;
-    rec.ondataavailable=e=>{if(e.data.size)session.chunks.push(e.data)};
+    rec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
     const done=new Promise(resolve=>{
       rec.onstop=async()=>{
-        const blob=new Blob(session.chunks,{type:rec.mimeType||"audio/webm"});
+        const blob=new Blob(chunks,{type:rec.mimeType||chunks[0]?.type||"audio/webm"});
         stream.getTracks().forEach(t=>t.stop());
         const elapsed=Math.max(0,(Date.now()-session.recordingStartedAt)/1000);
         session.recordingSaving=true;
@@ -968,7 +1004,9 @@
         renderRecordings().catch(console.error);
       };
     });
-    session.recordingStartedAt=Date.now(); rec.start(); setRecordButton("recording"); setStatus("🎤 녹음 중");
+    session.recordingStartedAt=Date.now();
+    try{rec.start();}catch(error){stream.getTracks().forEach(track=>track.stop());session.mediaRecorder=null;session.mediaStream=null;throw error;}
+    setRecordButton("recording");setStatus("🎤 녹음 중");
     if(durationMs){
       await sleep(durationMs);
       if(rec.state==="recording")rec.stop();
