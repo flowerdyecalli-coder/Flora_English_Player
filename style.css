@@ -287,3 +287,11 @@ dialog{border:0;border-radius:22px;padding:0;width:min(calc(100% - 28px),460px);
   #studyView .english-text{display:block;white-space:nowrap;word-break:normal;overflow-wrap:normal;overflow-x:hidden;max-width:100%;font-size:28px;line-height:1.5;margin:0 0 8px;padding:0 0 3px;touch-action:pan-x pinch-zoom}
   #studyView .korean-text{white-space:nowrap;overflow-x:hidden;max-width:100%;font-size:19px;line-height:1.5;touch-action:pan-x pinch-zoom}
 }
+
+/* Two-digit ordinals and a separate shuffle action. */
+.lesson-toolbar .number-select-field{flex:1 1 145px;min-width:140px;max-width:260px}
+.number-dropdown{min-width:140px}
+.number-dropdown summary{min-width:140px;white-space:normal;overflow-wrap:anywhere;line-height:1.4}
+.number-dropdown .number-picker{min-width:160px}
+.number-dropdown .number-option{white-space:nowrap;min-width:90px}
+.lesson-toolbar .shuffle-btn{border:1px solid #d5e1ea;border-radius:10px;background:#e8f1f8;color:#2d6985;font-weight:700;font-size:15px;padding:10px 12px;white-space:nowrap;min-height:42px}

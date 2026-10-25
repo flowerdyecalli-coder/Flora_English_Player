@@ -168,8 +168,11 @@
       sentenceNumber(a) - sentenceNumber(b) ||
       (Number(a.order)||0) - (Number(b.order)||0);
     if (sort === "desc") list.sort((a,b)=>byLessonAndNumber(b,a));
-    else if (sort === "shuffle") list=shuffle(list);
     else list.sort(byLessonAndNumber);
+    if(Array.isArray(playlist.shuffleOrder)&&playlist.shuffleOrder.length){
+      const rank=new Map(playlist.shuffleOrder.map((id,index)=>[id,index]));
+      list.sort((a,b)=>(rank.get(a.id)??Number.MAX_SAFE_INTEGER)-(rank.get(b.id)??Number.MAX_SAFE_INTEGER));
+    }
     return list;
   }
   function currentSentence() {
@@ -371,7 +374,15 @@
     els.sentenceList.addEventListener("click", handleSentenceListClick);
     els.sentenceList.addEventListener("change", handleSentenceCheck);
 
-    els.sortSelect.addEventListener("change",renderPlaylistDetail);
+    els.sortSelect.addEventListener("change",()=>{
+      const p=currentPlaylist();if(p)p.shuffleOrder=[];
+      saveState();renderPlaylistDetail();
+    });
+    $("#shuffleBtn").addEventListener("click",()=>{
+      const p=currentPlaylist();if(!p)return;
+      p.shuffleOrder=shuffle(p.sentences.map(sentence=>sentence.id));
+      saveState();renderPlaylistDetail();toast("문장 순서를 섞었습니다.");
+    });
     els.lessonSelect.addEventListener("change", () => {
       state.selectedLessons = els.lessonSelect.value ? [els.lessonSelect.value] : [];
       state.selectedNumber = ""; state.selectedNumbers=[];
@@ -780,7 +791,6 @@
   async function startPlaylistPractice() {
     const p=currentPlaylist(); if(!p?.sentences.length)return;
     let list=sortedSentences(p); if(state.reviewOnly)list=list.filter(s=>s.review);
-    if(els.sortSelect?.value==="shuffle") list=shuffle([...list]);
     stopEverything();
     switchView("studyView");
     await runQueue(list);
@@ -790,7 +800,6 @@
     const p=currentPlaylist(); if(!p)return;
     let list=sortedSentences(p).filter(s=>state.selectedSentenceIds.includes(s.id));
     if(!list.length){toast("연습할 문장을 선택해 주세요.");return;}
-    if(els.sortSelect?.value==="shuffle") list=shuffle(list);
     stopEverything();switchView("studyView"); await runQueue(list);
   }
 
