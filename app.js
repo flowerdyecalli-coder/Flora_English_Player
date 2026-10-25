@@ -70,6 +70,7 @@
   init();
 
   function init() {
+    state.settings.autoRecord=false;
     for (let i=1;i<=10;i++) els.delaySelect.insertAdjacentHTML("beforeend", `<option value="${i}">${i}초</option>`);
     for (let i=5;i<=10;i++) {
       const v = (i/10).toFixed(1);
@@ -298,11 +299,7 @@
           ${s.korean ? `<div class="kr">${escapeHtml(s.korean)}</div>`:""}
           <div class="sentence-lesson">${escapeHtml(lessonDisplay(s.lesson))} · ${sentenceNumber(s)}번</div>
         </div>
-        <div class="sentence-row-actions">
-          <button class="state" data-action="toggle-review" aria-label="복습">${stateIcon}</button>
-          <button class="sentence-edit-btn" data-action="edit-sentence" aria-label="문장 수정">수정</button>
-          <button class="sentence-delete-btn" data-action="delete-sentence" aria-label="문장 삭제">삭제</button>
-        </div>
+        <button class="state" data-action="toggle-review" aria-label="복습">${stateIcon}</button>
       </div>`;
     }).join("") : `<p class="muted">선택한 레슨에 문장이 없습니다.</p>`;
     els.selectedCount.textContent = `${state.selectedSentenceIds.length}개 선택`;
@@ -383,6 +380,10 @@
 
     $("#createPlaylistSubmit").addEventListener("click", createPlaylistFromDialog);
     $("#sentenceForm").addEventListener("submit",saveSentenceFromDialog);
+    $("#sentenceEditorSelect").addEventListener("change",()=>{
+      const id=$("#sentenceEditorSelect").value;
+      openSentenceDialog(id?currentPlaylist()?.sentences.find(s=>s.id===id):null);
+    });
     $("#cancelSentenceBtn").addEventListener("click",()=>els.sentenceDialog.close());
     $("#deleteSentenceBtn").addEventListener("click",()=>deleteSentenceById($("#editingSentenceId").value));
 
@@ -402,44 +403,60 @@
   }
 
   function swipeDestination(viewId,dx,dy){
-    if(Math.abs(dx)<65||Math.abs(dx)<Math.abs(dy)*1.6)return null;
+    if(Math.abs(dx)<48||Math.abs(dx)<Math.abs(dy)*1.4)return null;
     if(viewId==="studyView"&&dx<0)return "playlistView";
     if(viewId==="playlistView"&&dx>0)return "studyView";
     return null;
   }
   function bindSwipeNavigation(){
-    const shell=$("#appShell");let gesture=null;
-    const excluded="button,input,select,textarea,a,audio,summary,dialog,.number-picker,.lesson-toolbar,.sentence-row-actions,.bottom-action-bar";
-    shell.addEventListener("touchstart",event=>{
+    const shell=$("#appShell");let gesture=null,suppressClickUntil=0;
+    const excluded="button,input,select,textarea,a,audio,summary,dialog,.number-picker,.lesson-toolbar,.bottom-action-bar";
+    const begin=(target,x,y,id)=>{
       gesture=null;
-      if(event.touches.length!==1||document.querySelector("dialog[open]")||event.target.closest(excluded))return;
-      const view=event.target.closest(".view.active");
+      if(document.querySelector("dialog[open]")||target.closest(excluded))return;
+      const view=target.closest(".view.active");
       if(!view||!["studyView","playlistView"].includes(view.id))return;
-      const touch=event.touches[0];
-      // Leave the screen edges to the browser's own navigation gesture.
-      if(touch.clientX<24||touch.clientX>window.innerWidth-24)return;
-      gesture={x:touch.clientX,y:touch.clientY,id:touch.identifier,view:view.id,time:Date.now(),vertical:false};
-    },{passive:true});
-    shell.addEventListener("touchmove",event=>{
-      if(!gesture)return;
-      if(event.touches.length!==1){gesture=null;return;}
-      const touch=event.touches[0];
-      if(touch.identifier!==gesture.id){gesture=null;return;}
-      const dx=touch.clientX-gesture.x,dy=touch.clientY-gesture.y;
-      if(Math.abs(dy)>18&&Math.abs(dy)>Math.abs(dx)){gesture.vertical=true;return;}
-      if(!gesture.vertical&&swipeDestination(gesture.view,dx,dy)&&event.cancelable)event.preventDefault();
-    },{passive:false});
-    shell.addEventListener("touchend",event=>{
-      const start=gesture;gesture=null;
-      if(!start||start.vertical||Date.now()-start.time>1200)return;
-      const touch=[...event.changedTouches].find(t=>t.identifier===start.id);if(!touch)return;
-      const destination=swipeDestination(start.view,touch.clientX-start.x,touch.clientY-start.y);
+      gesture={x,y,id,view:view.id,vertical:false};
+    };
+    const move=(x,y,id,event)=>{
+      if(!gesture||gesture.id!==id)return;
+      const dx=x-gesture.x,dy=y-gesture.y;
+      if(Math.abs(dy)>14&&Math.abs(dy)>Math.abs(dx)*1.2)gesture.vertical=true;
+      if(!gesture.vertical&&Math.abs(dx)>18&&Math.abs(dx)>Math.abs(dy)*1.4&&event.cancelable)event.preventDefault();
+    };
+    const finish=(x,y,id)=>{
+      const start=gesture;if(!start||start.id!==id)return;gesture=null;
+      if(start.vertical)return;
+      const destination=swipeDestination(start.view,x-start.x,y-start.y);
       if(destination&&document.querySelector(".view.active")?.id===start.view){
-        if(window.getSelection()?.toString())return;
-        switchView(destination);
+        suppressClickUntil=Date.now()+400;switchView(destination);
       }
-    },{passive:true});
-    shell.addEventListener("touchcancel",()=>{gesture=null;},{passive:true});
+    };
+    shell.addEventListener("click",event=>{
+      if(Date.now()<suppressClickUntil){event.preventDefault();event.stopImmediatePropagation();}
+    },true);
+    if(window.PointerEvent){
+      shell.addEventListener("pointerdown",event=>{
+        if(event.pointerType!=="touch"||!event.isPrimary)return;
+        begin(event.target,event.clientX,event.clientY,event.pointerId);
+      },{passive:true});
+      document.addEventListener("pointermove",event=>move(event.clientX,event.clientY,event.pointerId,event),{passive:false});
+      document.addEventListener("pointerup",event=>finish(event.clientX,event.clientY,event.pointerId),{passive:true});
+      document.addEventListener("pointercancel",()=>{gesture=null;},{passive:true});
+    }else{
+      shell.addEventListener("touchstart",event=>{
+        if(event.touches.length!==1){gesture=null;return;}
+        const touch=event.touches[0];begin(event.target,touch.clientX,touch.clientY,touch.identifier);
+      },{passive:true});
+      shell.addEventListener("touchmove",event=>{
+        if(event.touches.length!==1){gesture=null;return;}
+        const touch=event.touches[0];move(touch.clientX,touch.clientY,touch.identifier,event);
+      },{passive:false});
+      shell.addEventListener("touchend",event=>{
+        for(const touch of event.changedTouches)finish(touch.clientX,touch.clientY,touch.identifier);
+      },{passive:true});
+      shell.addEventListener("touchcancel",()=>{gesture=null;},{passive:true});
+    }
   }
 
   function switchView(viewId) {
@@ -510,12 +527,15 @@
     if (!row) return;
     const id = row.dataset.sentenceId;
 
-    if(e.target.closest('[data-action="edit-sentence"]')){openSentenceDialog(currentPlaylist()?.sentences.find(s=>s.id===id));return;}
-    if(e.target.closest('[data-action="delete-sentence"]')){deleteSentenceById(id);return;}
     if (e.target.closest('[data-action="toggle-review"]')) { toggleReview(id); return; }
     if (e.target.closest('[data-action="play-one"]')) {
-      const s=currentPlaylist()?.sentences.find(x=>x.id===id);
-      if(s){stopEverything();session.stopRequested=false;speakText(s.english,"en-US").catch(err=>{if(err.message!=="STOP")console.error(err);});}
+      let list=sortedSentences();
+      if(state.reviewOnly)list=list.filter(sentence=>sentence.review);
+      const index=list.findIndex(sentence=>sentence.id===id);
+      if(index<0)return;
+      stopEverything();
+      state.currentSentenceId=id;saveState();renderStudy();
+      runQueue(list.slice(index),true);
       return;
     }
     if (e.target.closest('[data-action="open-sentence"]')) {
@@ -633,6 +653,10 @@
 
   function openSentenceDialog(s=null) {
     const p=currentPlaylist();if(!p){toast("먼저 플레이리스트를 선택해 주세요.");return;}
+    const choices=[...p.sentences].sort((a,b)=>lessonNumber(a.lesson)-lessonNumber(b.lesson)||lessonLabel(a.lesson).localeCompare(lessonLabel(b.lesson))||sentenceNumber(a)-sentenceNumber(b));
+    $("#sentenceEditorSelect").innerHTML='<option value="">＋ 새 문장 추가</option>'+choices.map(item=>`<option value="${escapeHtml(item.id)}">${escapeHtml(lessonDisplay(item.lesson))} · ${sentenceNumber(item)}번 · ${escapeHtml(item.english.slice(0,65))}</option>`).join("");
+    $("#sentenceEditorSelect").value=s?.id||"";
+    $("#saveSentenceBtn").textContent=s?"수정 저장":"추가";
     const lesson=s?.lesson||(state.selectedLessons?.length===1?lessonDisplay(state.selectedLessons[0]).replace(/^레슨\s*/,""):currentSentence()?.lesson)||"1";
     const existing=p.sentences.filter(item=>lessonLabel(item.lesson)===lessonLabel(lesson));
     const next=existing.reduce((max,item)=>Math.max(max,sentenceNumber(item)),0)+1;
@@ -644,7 +668,7 @@
     $("#koreanInput").value=s?.korean||"";
     $("#descriptionInput").value=s?.description||"";
     $("#deleteSentenceBtn").classList.toggle("hidden",!s);
-    els.sentenceDialog.showModal();
+    if(!els.sentenceDialog.open)els.sentenceDialog.showModal();
   }
 
   function saveSentenceFromDialog(e) {
@@ -705,7 +729,15 @@
       if(lang==="EN") await speakText(s.english,"en-US");
       if(lang==="KR") await speakText(s.korean,"ko-KR");
       if(lang==="EN_KR"){ await speakText(s.english,"en-US"); check(); if(s.korean) await speakText(s.korean,"ko-KR"); }
-      if(lang==="KR_EN"){ if(s.korean) await speakText(s.korean,"ko-KR"); check(); await speakText(s.english,"en-US"); }
+      if(lang==="KR_EN"){
+        if(s.korean){
+          await speakText(s.korean,"ko-KR");
+          check();
+          await countdown(Number(state.settings.delay));
+          check();
+        }
+        await speakText(s.english,"en-US");
+      }
       check();
 
       if(state.settings.autoRecord) {
@@ -740,7 +772,7 @@
     stopEverything();switchView("studyView"); await runQueue(list);
   }
 
-  async function runQueue(list) {
+  async function runQueue(list,forceContinuous=false) {
     if(session.playing)return;
     session.playing=true; session.stopRequested=false; session.currentPlayQueue=list;
     const runId=++playbackGeneration;
@@ -749,7 +781,7 @@
         if(session.stopRequested||runId!==playbackGeneration)break;
         state.currentSentenceId=s.id; saveState(); renderStudy();
         await practiceSentence(s,runId);
-        if(!state.settings.autoNext)break;
+        if(!forceContinuous&&!state.settings.autoNext)break;
       }
     } catch(err){if(err?.message!=="STOP")console.error(err)}
     finally{if(runId===playbackGeneration){session.playing=false;session.currentPlayQueue=null;setStatus("준비")}}
@@ -885,9 +917,11 @@
     const button=els.recordBtn;
     button.classList.toggle("active",mode==="recording");
     button.classList.toggle("record-label",mode!=="idle");
-    button.textContent=mode==="recording"?"녹음 중":mode==="complete"?"녹음 완료":mode==="saving"?"저장 중":"●";
-    if(mode==="idle")button.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg>';
-    button.setAttribute("aria-label",mode==="recording"?"녹음 중, 누르면 종료":mode==="complete"?"녹음 완료":"녹음");
+    const recording=mode==="recording";
+    const label=recording?"녹음 중":mode==="complete"?"녹음 완료":mode==="saving"?"저장 중":"";
+    button.innerHTML=(recording?'<svg viewBox="0 0 28 28" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg>':'<svg viewBox="0 0 28 28" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 12 5M19 10v2M12 19v3M8 22h8"/><path class="mic-off-cross" d="M20 19l6 6M26 19l-6 6"/></svg>')+(label?`<span class="record-state-label">${label}</span>`:"");
+    button.setAttribute("aria-label",recording?"녹음 중, 누르면 종료":"녹음 꺼짐, 누르면 시작");
+    button.title=recording?"녹음 중":"녹음 안 함";
     button.setAttribute("aria-pressed",String(mode==="recording"));
     if(mode==="complete")recordButtonTimer=setTimeout(()=>setRecordButton("idle"),1200);
   }

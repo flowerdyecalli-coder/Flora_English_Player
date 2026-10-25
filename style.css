@@ -205,3 +205,67 @@ dialog{border:0;border-radius:22px;padding:0;width:min(calc(100% - 28px),460px);
 .brand-copy span{margin-top:5px}
 @media(max-width:520px){.brand-logo{width:40px;height:40px;border-radius:8px}}
 @media (orientation:landscape) and (max-height:600px) and (pointer:coarse){.brand-logo{width:34px;height:34px;border-radius:7px}.brand-copy{flex-direction:row;align-items:baseline;gap:8px}.brand-copy span{margin-top:0}}
+
+.brand strong .version-badge{display:inline-block;vertical-align:middle;font-size:10px;line-height:1.3;letter-spacing:0;font-weight:600;color:#477383;background:#e8f1f4;border-radius:5px;padding:2px 5px;margin-left:3px}
+
+/* Let native vertical scrolling coexist with app horizontal navigation. */
+#studyView,#playlistView{touch-action:pan-y pinch-zoom}
+#studyView button,#studyView input,#studyView select,#playlistView button,#playlistView input,#playlistView select{touch-action:manipulation}
+
+/* Larger, more readable phone typography in both orientations. */
+@media(max-width:600px), (pointer:coarse) and (max-width:1100px){
+  body{font-size:17px}
+  .brand strong{font-size:20px}.brand span{font-size:14px}
+  .brand strong .version-badge{font-size:12px}
+  .eyebrow,.counter{font-size:15px}
+  .english-text{font-size:clamp(27px,7.2vw,32px);line-height:1.4}
+  .korean-text{font-size:20px;line-height:1.6}
+  .description-label{font-size:15px}
+  .description-text{font-size:18px;line-height:1.6;max-height:4.8em}
+  .status-line{font-size:15px}
+  .reference-settings .setting-value{font-size:14px;height:27px;line-height:27px}
+  .reference-settings .setting-caption{font-size:14px;line-height:1.4}
+  .reference-settings .setting-control{gap:6px}
+  .player-card #countdownArea,.player-card .countdown #countdownNumber{font-size:13px}
+  .player-actions{flex-wrap:wrap;gap:10px}
+  .switch-row{font-size:16px;gap:7px}
+  .player-actions select{font-size:16px;padding:10px 8px}
+  .playlist-card h3{font-size:20px}
+  .playlist-meta{font-size:15px;flex-wrap:wrap;gap:7px}
+  .detail-head h3{font-size:21px}
+  .muted,.selection-bar{font-size:15px}
+  .sentence-row .en{font-size:20px;line-height:1.5}
+  .sentence-row .kr{font-size:18px;line-height:1.5}
+  .sentence-lesson{font-size:15px;line-height:1.4}
+  .sentence-row .play-one{font-size:20px;min-width:28px;min-height:38px}
+  .sentence-row .state{font-size:22px;min-width:34px;min-height:38px}
+  .lesson-select-field{font-size:15px}
+  .lesson-select-field select,.number-dropdown summary,.number-option,.number-all{font-size:16px}
+  .number-dropdown summary{min-height:44px}
+  .toolbar-grid button,.selection-bar button,.primary-btn,.secondary-btn,.playlist-delete-btn{font-size:16px}
+  .recording-info .title{font-size:17px}
+  .recording-info .meta{font-size:14px}
+  .recording-actions button{font-size:15px;padding:8px}
+  .bottom-action-bar{flex-wrap:wrap}
+  .bottom-action-bar button{font-size:15px;padding:9px}
+  .bottom-nav{height:calc(72px + env(safe-area-inset-bottom))}
+  .nav-btn{font-size:15px}.nav-btn span{font-size:23px}
+  .app-shell{padding-bottom:calc(86px + env(safe-area-inset-bottom))}
+  .bottom-action-bar{bottom:calc(80px + env(safe-area-inset-bottom))}
+  .toast{font-size:16px;bottom:calc(90px + env(safe-area-inset-bottom))}
+  .dialog-card label{font-size:16px}
+  .dialog-card input,.dialog-card textarea,.dialog-card select,.dialog-actions button{font-size:17px}
+  .dialog-card h3{font-size:22px}
+  .help{font-size:15px;line-height:1.6}
+}
+@media(orientation:landscape) and (max-height:600px) and (pointer:coarse){
+  .brand strong{font-size:18px}.brand span{font-size:13px}
+  .english-text{font-size:28px}.korean-text{font-size:19px}
+  #studyView.active{grid-template-columns:minmax(0,1.25fr) minmax(300px,1fr)}
+  .nav-btn span{font-size:21px}
+}
+
+.player-card .round-btn.record{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+.round-btn.record .mic-off-cross{stroke-width:2.6}
+.round-btn.record.record-label svg{width:23px;height:23px;margin:0}
+.record-state-label{display:block;font-size:10px;font-weight:700;line-height:1.15;white-space:nowrap}
