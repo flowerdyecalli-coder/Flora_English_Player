@@ -337,3 +337,6 @@ dialog{border:0;border-radius:22px;padding:0;width:min(calc(100% - 28px),460px);
 .reference-settings .icon-select .clock-icon{font-size:58px;height:58px;}
 .reference-settings .icon-select select{height:100%;}
 .reference-settings .icon-action{height:58px;}
+
+/* 大きさを保ち細線の時計に変更 */
+.reference-settings .clock-icon svg{display:block;width:58px;height:58px;max-width:none;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;}
