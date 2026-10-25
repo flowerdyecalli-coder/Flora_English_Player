@@ -370,7 +370,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     repeatSelect: $("#repeatSelect"), delaySelect: $("#delaySelect"), speedSelect: $("#speedSelect"), languageSelect: $("#languageSelect"),
     playlistCards: $("#playlistCards"), playlistDetail: $("#playlistDetail"), detailPlaylistName: $("#detailPlaylistName"),
     detailTotal: $("#detailTotal"), sentenceList: $("#sentenceList"), sortSelect: $("#sortSelect"), playModeSelect: $("#playModeSelect"),
-    lessonCountBadge: $("#lessonCountBadge"), lessonPicker: $("#lessonPicker"), numberPicker: $("#numberPicker"),
+    lessonPicker: $("#lessonPicker"), numberPicker: $("#numberPicker"),
     selectedCount: $("#selectedCount"), recordingList: $("#recordingList"), recordingCount: $("#recordingCount"),
     recordingSelectionBar: $("#recordingSelectionBar"), recordingSelectedCount: $("#recordingSelectedCount"),
     playlistDialog: $("#playlistDialog"), sentenceDialog: $("#sentenceDialog"), settingsDialog: $("#settingsDialog"), toast: $("#toast")
@@ -380,7 +380,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
 
   function init() {
     const version=document.querySelector(".version-badge");
-    if(version){version.textContent="v01.027";version.setAttribute("aria-label","실행 버전 v01.027");}
+    if(version){version.textContent="v01.033";version.setAttribute("aria-label","실행 버전 v01.033");}
     state.settings.autoRecord=false;
     for (let i=1;i<=10;i++) els.delaySelect.insertAdjacentHTML("beforeend", `<option value="${i}">${i}초</option>`);
     for (let i=5;i<=10;i++) {
@@ -443,6 +443,10 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   function lessonDisplay(value) {
     const n = lessonNumber(value);
     return n === 9999 ? (String(value||"").trim() || "기타") : `레슨 ${n}`;
+  }
+  function lessonOptionText(value) {
+    const n=lessonNumber(value);
+    return n===9999?lessonDisplay(value):String(n);
   }
   function lessonNumber(value) {
     const m=String(value||"").match(/(\d{1,3})/);
@@ -562,7 +566,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
           <h3>${escapeHtml(p.name)}</h3>
           <div class="playlist-meta"><span>${Math.min(currentIdx,p.sentences.length)} / ${p.sentences.length}</span><span>${state.settings.speed}x</span><span>★ ${reviewCount}</span></div>
         </div>
-        <div class="playlist-card-actions"><button type="button" class="playlist-share-btn" data-action="share-playlist">공유</button><button class="menu" data-action="playlist-menu" aria-label="플레이리스트 관리">⋮</button></div>
+        <div class="playlist-card-actions"><button type="button" class="playlist-share-btn" data-action="share-playlist">공유</button><button type="button" class="menu" data-action="rename-playlist" aria-label="플레이리스트 이름 변경" title="이름 변경">✎</button></div>
       </article>`;
     }).join("") : `<p class="muted">플레이리스트가 없습니다.</p>`;
     const delBtn=$("#deletePlaylistsBtn");
@@ -578,10 +582,9 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     const selected=state.selectedLessons||[];
     const allLessons=!state.lessonSelectionNone&&(!selected.length||lessons.every(l=>selected.includes(l)));
     const chosenLessons=state.lessonSelectionNone?[]:selected.length?selected:lessons;
-    els.lessonCountBadge.textContent=`${p.sentences.length}개`;
-    $("#lessonDropdownSummary").textContent=state.lessonSelectionNone?"선택 없음":allLessons?"전체":chosenLessons.length>2?`${chosenLessons.length}개 레슨`:chosenLessons.map(lessonDisplay).join(", ");
+    $("#lessonDropdownSummary").textContent=state.lessonSelectionNone?"선택 없음":allLessons?"전체":chosenLessons.length>2?`${chosenLessons.length}개 레슨`:chosenLessons.map(lessonOptionText).join(", ");
     els.lessonPicker.innerHTML=`<label class="number-all ${allLessons?"active":""}"><input type="checkbox" data-lesson-all ${allLessons?"checked":""}>전체</label>`+
-      lessons.map(l=>`<label class="number-option"><input type="checkbox" data-lesson="${escapeHtml(l)}" ${chosenLessons.includes(l)?"checked":""}>${escapeHtml(lessonDisplay(l))}</label>`).join("");
+      lessons.map(l=>`<label class="number-option"><input type="checkbox" data-lesson="${escapeHtml(l)}" ${chosenLessons.includes(l)?"checked":""}>${escapeHtml(lessonOptionText(l))}</label>`).join("");
     const matching=p.sentences.filter(sentence=>chosenLessons.includes(lessonLabel(sentence.lesson)));
     const numbers=[...new Set(matching.map(sentenceNumber))].sort((a,b)=>a-b);
     const chosen=getSelectedNumbers();
@@ -633,9 +636,83 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     dropdown.addEventListener("keydown",e=>{if(e.key==="Escape"){dropdown.open=false;$("#numberDropdownSummary").focus();}});
   }
 
+  function bindDragSelection(picker,attribute){
+    const selector=`input[${attribute}]`;
+    let gesture=null,suppressUntil=0,scrollFrame=null;
+    const stopScroll=()=>{if(scrollFrame!==null)cancelAnimationFrame(scrollFrame);scrollFrame=null;};
+    const markRange=(input)=>{
+      if(!gesture||!input)return;
+      const index=gesture.inputs.indexOf(input);if(index<0)return;
+      const lo=Math.min(gesture.last,index),hi=Math.max(gesture.last,index);
+      for(let i=lo;i<=hi;i++){
+        const option=gesture.inputs[i];option.checked=gesture.checked;
+        option.closest("label")?.classList.toggle("drag-selected",gesture.checked);
+      }
+      gesture.last=index;gesture.lastInput=input;
+      const all=picker.querySelector("[data-lesson-all],[data-number-all]");
+      if(all){const count=gesture.inputs.filter(option=>option.checked).length;all.checked=count===gesture.inputs.length;all.indeterminate=count>0&&count<gesture.inputs.length;}
+    };
+    const hit=(x,y)=>{
+      const element=document.elementFromPoint(x,y);
+      const row=element?.closest(".number-option");
+      if(row&&picker.contains(row))return row.querySelector(selector);
+      return null;
+    };
+    const scrollTick=()=>{
+      scrollFrame=null;if(!gesture)return;
+      const rect=picker.getBoundingClientRect(),edge=30;
+      const delta=gesture.y<rect.top+edge?-7:gesture.y>rect.bottom-edge?7:0;
+      if(delta){picker.scrollTop+=delta;markRange(hit(gesture.x,Math.max(rect.top+3,Math.min(rect.bottom-3,gesture.y))));}
+      scrollFrame=requestAnimationFrame(scrollTick);
+    };
+    const begin=(target,x,y,id,event)=>{
+      if(gesture)return;
+      const row=target.closest(".number-option"),input=row?.querySelector(selector);
+      if(!row||!picker.contains(row)||!input||input.disabled)return;
+      if(event.cancelable)event.preventDefault();
+      const inputs=[...picker.querySelectorAll(selector)];
+      gesture={id,inputs,last:inputs.indexOf(input),lastInput:input,checked:!input.checked,x,y};
+      suppressUntil=Date.now()+700;markRange(input);scrollFrame=requestAnimationFrame(scrollTick);
+    };
+    const move=(x,y,id,event)=>{
+      if(!gesture||gesture.id!==id)return;
+      if(event.cancelable)event.preventDefault();
+      gesture.x=x;gesture.y=y;markRange(hit(x,y));
+    };
+    const finish=(id)=>{
+      if(!gesture||gesture.id!==id)return;
+      const input=gesture.lastInput;gesture=null;stopScroll();suppressUntil=Date.now()+500;
+      input.dispatchEvent(new Event("change",{bubbles:true}));
+    };
+    picker.addEventListener("click",event=>{
+      if(Date.now()<suppressUntil){event.preventDefault();event.stopImmediatePropagation();}
+    },true);
+    if(window.PointerEvent){
+      picker.addEventListener("pointerdown",event=>{
+        if(!event.isPrimary||(event.pointerType==="mouse"&&event.button!==0))return;
+        begin(event.target,event.clientX,event.clientY,event.pointerId,event);
+      },{passive:false});
+      document.addEventListener("pointermove",event=>move(event.clientX,event.clientY,event.pointerId,event),{passive:false});
+      document.addEventListener("pointerup",event=>finish(event.pointerId));
+      document.addEventListener("pointercancel",event=>finish(event.pointerId));
+    }else{
+      picker.addEventListener("touchstart",event=>{if(event.touches.length===1){const t=event.touches[0];begin(event.target,t.clientX,t.clientY,t.identifier,event);}},{passive:false});
+      document.addEventListener("touchmove",event=>{for(const t of event.changedTouches)move(t.clientX,t.clientY,t.identifier,event);},{passive:false});
+      document.addEventListener("touchend",event=>{for(const t of event.changedTouches)finish(t.identifier);});
+      document.addEventListener("touchcancel",event=>{for(const t of event.changedTouches)finish(t.identifier);});
+      picker.addEventListener("mousedown",event=>{if(event.button===0)begin(event.target,event.clientX,event.clientY,"mouse",event);});
+      document.addEventListener("mousemove",event=>move(event.clientX,event.clientY,"mouse",event));
+      document.addEventListener("mouseup",()=>finish("mouse"));
+    }
+    window.addEventListener("blur",()=>{if(gesture)finish(gesture.id);});
+  }
+
   function renderPlaylistDetail() {
     const p = currentPlaylist();
     if (!p) return;
+    const reviewButton=$("#reviewOnlyBtn");
+    reviewButton.classList.toggle("active",!!state.reviewOnly);
+    reviewButton.setAttribute("aria-pressed",String(!!state.reviewOnly));
     els.detailPlaylistName.textContent = p.name;
     let list = sortedSentences(p);
     if (state.reviewOnly) list = list.filter(s=>s.review);
@@ -670,6 +747,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   }
 
   function bindEvents() {
+    bindPlaylistEditor();
     bindSwipeNavigation();
     window.addEventListener("resize",()=>requestAnimationFrame(fitLandscapeSentences));
     document.fonts?.ready.then(()=>requestAnimationFrame(fitLandscapeSentences));
@@ -726,9 +804,11 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     });
     bindLessonPicker();
     bindNumberPicker();
+    bindDragSelection(els.lessonPicker,"data-lesson");
+    bindDragSelection(els.numberPicker,"data-number");
     document.querySelectorAll(".icon-select select").forEach(select=>select.addEventListener("change",syncControlValues));
     if (els.playModeSelect) els.playModeSelect.addEventListener("change",()=>{state.playMode=els.playModeSelect.value;saveState()});
-    $("#reviewOnlyBtn").addEventListener("click",()=>{state.reviewOnly=!state.reviewOnly;renderPlaylistDetail();toast(state.reviewOnly?"복습 문장만 표시합니다.":"전체 문장을 표시합니다.")});
+    $("#reviewOnlyBtn").addEventListener("click",()=>{state.reviewOnly=!state.reviewOnly;saveState();renderPlaylistDetail();toast(state.reviewOnly?"복습 문장만 표시합니다.":"전체 문장을 표시합니다.")});
     $("#playAllBtn").addEventListener("click",()=>startPlaylistPractice());
     $("#practiceSelectedBtn").addEventListener("click",()=>startSelectedPractice());
 
@@ -787,7 +867,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     const shell=$("#appShell");let gesture=null,suppressClickUntil=0;
     const begin=(target,x,y,id)=>{
       gesture=null;
-      if(document.querySelector("dialog[open]"))return;
+      if(document.querySelector("dialog[open]")||target.closest("#lessonPicker,#numberPicker"))return;
       const view=target.closest(".view.active")||document.querySelector(".view.active");
       if(!view||!["studyView","playlistView"].includes(view.id))return;
       gesture={x,y,id,view:view.id,vertical:false};
@@ -856,6 +936,106 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     toast("선택한 플레이리스트를 삭제했습니다.");
   }
 
+  function openPlaylistEditor(focusId=null){
+    session.playlistEditorDraft=state.playlists.map(playlist=>({id:playlist.id,name:playlist.name}));
+    session.playlistEditorEditing=null;renderPlaylistEditor();
+    $("#playlistEditorDialog").showModal();
+    if(focusId)$("#playlistEditorList").querySelector(`[data-editor-id="${focusId}"]`)?.scrollIntoView({block:"center"});
+  }
+  function renderPlaylistEditor(){
+    const draft=session.playlistEditorDraft||[];
+    const pencil='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16l-1 5 5-1L21 7l-4-4L4 16zM14 6l4 4"/></svg>';
+    const trash='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M9 2h6M6 5v17h12V5M10 9v9M14 9v9"/></svg>';
+    const handle='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16M4 15h16"/></svg>';
+    $("#playlistEditorList").innerHTML=draft.length?draft.map(item=>{
+      const editing=session.playlistEditorEditing===item.id;
+      return `<div class="playlist-editor-row" data-editor-id="${escapeHtml(item.id)}">
+        <div class="playlist-editor-name">${editing?`<input class="playlist-editor-name-input" aria-label="플레이리스트 이름" maxlength="150" value="${escapeHtml(item.name)}">`:escapeHtml(item.name)}</div>
+        <button type="button" class="editor-action" data-editor-action="rename" aria-label="${editing?"이름 입력 완료":"이름 변경"}">${editing?'✓':pencil}</button>
+        <button type="button" class="editor-action editor-delete" data-editor-action="delete" aria-label="삭제">${trash}</button>
+        <button type="button" class="editor-action editor-drag" data-editor-action="reorder" aria-label="드래그로 순서 이동, 키보드는 위아래 방향키">${handle}</button>
+      </div>`;
+    }).join(""):'<p class="playlist-editor-empty">플레이리스트가 없습니다.</p>';
+  }
+  function savePlaylistEditor(){
+    const draft=session.playlistEditorDraft||[];
+    if(draft.some(item=>!item.name.trim())){toast("플레이리스트 이름을 입력해 주세요.");return;}
+    const existing=new Map(state.playlists.map(playlist=>[playlist.id,playlist]));
+    state.playlists=draft.filter(item=>existing.has(item.id)).map(item=>({...existing.get(item.id),name:item.name.trim()}));
+    state.selectedPlaylistIds=(state.selectedPlaylistIds||[]).filter(id=>state.playlists.some(playlist=>playlist.id===id));
+    if(!state.playlists.some(playlist=>playlist.id===state.currentPlaylistId)){
+      stopEverything();state.currentPlaylistId=state.playlists[0]?.id||null;
+      state.currentSentenceId=state.playlists[0]?.sentences[0]?.id||null;state.currentIndex=0;
+      state.selectedSentenceIds=[];state.selectedLessons=[];state.lessonSelectionNone=false;
+      state.selectedNumbers=[];state.selectedNumber="";state.numberSelectionNone=false;state.reviewOnly=false;
+    }
+    saveState();$("#playlistEditorDialog").close();renderAll();toast("플레이리스트를 수정했습니다.");
+  }
+  function bindPlaylistEditor(){
+    const dialog=$("#playlistEditorDialog"),list=$("#playlistEditorList");
+    $("#editPlaylistsBtn").addEventListener("click",()=>openPlaylistEditor());
+    $("#cancelPlaylistEditor").addEventListener("click",()=>dialog.close());
+    $("#savePlaylistEditor").addEventListener("click",savePlaylistEditor);
+    dialog.addEventListener("close",()=>{session.playlistEditorDraft=null;session.playlistEditorEditing=null;});
+    list.addEventListener("input",event=>{
+      if(!event.target.matches(".playlist-editor-name-input"))return;
+      const id=event.target.closest("[data-editor-id]").dataset.editorId;
+      const item=session.playlistEditorDraft?.find(item=>item.id===id);if(item)item.name=event.target.value;
+    });
+    list.addEventListener("click",event=>{
+      const button=event.target.closest("[data-editor-action]"),row=button?.closest("[data-editor-id]");if(!row)return;
+      const id=row.dataset.editorId,action=button.dataset.editorAction;
+      if(action==="rename"){
+        session.playlistEditorEditing=session.playlistEditorEditing===id?null:id;renderPlaylistEditor();
+        const input=list.querySelector(".playlist-editor-name-input");if(input){input.focus();input.select();}
+      }else if(action==="delete"&&confirm("이 플레이리스트를 삭제할까요? 오른쪽 위 체크를 누르면 반영됩니다.")){
+        session.playlistEditorDraft=session.playlistEditorDraft.filter(item=>item.id!==id);renderPlaylistEditor();
+      }
+    });
+    list.addEventListener("keydown",event=>{
+      if(event.target.matches(".playlist-editor-name-input")&&event.key==="Enter"){
+        event.preventDefault();session.playlistEditorEditing=null;renderPlaylistEditor();return;
+      }
+      if(!event.target.closest('[data-editor-action="reorder"]')||!["ArrowUp","ArrowDown"].includes(event.key))return;
+      event.preventDefault();const row=event.target.closest("[data-editor-id]"),draft=session.playlistEditorDraft;
+      const index=draft.findIndex(item=>item.id===row.dataset.editorId),next=index+(event.key==="ArrowUp"?-1:1);
+      if(next<0||next>=draft.length)return;
+      [draft[index],draft[next]]=[draft[next],draft[index]];renderPlaylistEditor();
+      list.querySelector(`[data-editor-id="${row.dataset.editorId}"] .editor-drag`)?.focus();
+    });
+    let drag=null,frame=null;
+    const stop=()=>{if(frame!==null)cancelAnimationFrame(frame);frame=null;};
+    const reorderAt=(x,y)=>{
+      if(!drag)return;const target=document.elementFromPoint(x,y)?.closest("[data-editor-id]");
+      if(!target||target===drag.row||!list.contains(target))return;
+      const rows=[...list.querySelectorAll("[data-editor-id]")];
+      list.insertBefore(drag.row,rows.indexOf(target)>rows.indexOf(drag.row)?target.nextSibling:target);
+    };
+    const scroll=()=>{
+      frame=null;if(!drag)return;const rect=list.getBoundingClientRect();
+      if(drag.y<rect.top+45)list.scrollTop-=8;
+      else if(drag.y>rect.bottom-45)list.scrollTop+=8;
+      reorderAt(drag.x,Math.max(rect.top+3,Math.min(rect.bottom-3,drag.y)));frame=requestAnimationFrame(scroll);
+    };
+    list.addEventListener("pointerdown",event=>{
+      if(!event.isPrimary||event.button!==0||!event.target.closest('[data-editor-action="reorder"]'))return;
+      event.preventDefault();const row=event.target.closest("[data-editor-id]");
+      drag={id:event.pointerId,row,x:event.clientX,y:event.clientY};row.classList.add("dragging");frame=requestAnimationFrame(scroll);
+    });
+    document.addEventListener("pointermove",event=>{
+      if(!drag||drag.id!==event.pointerId)return;if(event.cancelable)event.preventDefault();
+      drag.x=event.clientX;drag.y=event.clientY;reorderAt(drag.x,drag.y);
+    },{passive:false});
+    const finish=(event,cancel=false)=>{
+      if(!drag||drag.id!==event.pointerId)return;stop();drag=null;
+      if(!cancel){const byId=new Map(session.playlistEditorDraft.map(item=>[item.id,item]));session.playlistEditorDraft=[...list.querySelectorAll("[data-editor-id]")].map(row=>byId.get(row.dataset.editorId)).filter(Boolean);}
+      renderPlaylistEditor();
+    };
+    document.addEventListener("pointerup",event=>finish(event));
+    document.addEventListener("pointercancel",event=>finish(event,true));
+    dialog.addEventListener("close",()=>{stop();drag=null;});
+  }
+
   function handlePlaylistCardClick(e) {
     if (e.target.closest(".playlist-check")) return;
     const card = e.target.closest(".playlist-card");
@@ -864,19 +1044,8 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     if (!p) return;
 
     if(e.target.closest('[data-action="share-playlist"]')){sharePlaylistFile(p);return;}
-    if (e.target.closest('[data-action="playlist-menu"]')) {
-      const action = prompt(`"${p.name}" 관리\n1: 이름 변경\n2: 삭제`, "1");
-      if (action==="1") {
-        const name = prompt("새 이름", p.name);
-        if (name?.trim()) { p.name=name.trim(); saveState(); renderAll(); }
-      } else if (action==="2" && confirm("플레이리스트를 삭제할까요?")) {
-        state.playlists = state.playlists.filter(x=>x.id!==p.id);
-        if (state.currentPlaylistId===p.id) {
-          state.currentPlaylistId=state.playlists[0]?.id||null;
-          state.currentSentenceId=state.playlists[0]?.sentences[0]?.id||null;
-        }
-        saveState(); renderAll();
-      }
+    if (e.target.closest('[data-action="rename-playlist"]')) {
+      openPlaylistEditor(p.id);
       return;
     }
 
@@ -910,7 +1079,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
       if(index<0)return;
       stopEverything();
       state.currentSentenceId=id;saveState();renderStudy();
-      runQueue(list.slice(index),true);
+      runQueue(list.slice(index),true,{navigationQueue:list});
       return;
     }
     if (e.target.closest('[data-action="open-sentence"]')) {
@@ -937,14 +1106,23 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   }
 
   function moveSentence(delta) {
-    const p=currentPlaylist(); if(!p?.sentences.length)return;
-    const list=state.reviewOnly ? sortedSentences(p).filter(s=>s.review) : p.sentences;
+    const p=currentPlaylist();if(!p?.sentences.length)return;
+    const wasPlaying=session.playing,wasPaused=session.paused;
+    const forceContinuous=!!session.queueForceContinuous;
+    let list=wasPlaying&&session.navigationQueue?.length?[...session.navigationQueue]:sortedSentences(p);
+    if(state.reviewOnly)list=list.filter(sentence=>sentence.review);
     if(!list.length)return;
-    let idx=list.findIndex(s=>s.id===state.currentSentenceId);
-    idx=(idx+delta+list.length)%list.length;
-    state.currentSentenceId=list[idx].id;
-    state.currentIndex=p.sentences.findIndex(s=>s.id===state.currentSentenceId);
-    saveState(); renderStudy();
+    const current=list.findIndex(sentence=>sentence.id===state.currentSentenceId);
+    const index=current<0?(delta<0?list.length-1:0):(current+delta+list.length)%list.length;
+    // Cancel the previous utterance and queue before changing the displayed sentence.
+    stopEverything({keepRecording:true});
+    state.currentSentenceId=list[index].id;
+    state.currentIndex=p.sentences.findIndex(sentence=>sentence.id===state.currentSentenceId);
+    saveState();renderStudy();
+    if(wasPlaying){
+      const queue=forceContinuous||state.settings.autoNext?list.slice(index):[list[index]];
+      runQueue(queue,forceContinuous,{navigationQueue:list,paused:wasPaused});
+    }
   }
 
   function playlistShareCsv(playlist){
@@ -1112,10 +1290,11 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     let list=sortedSentences();
     if(state.reviewOnly)list=list.filter(s=>s.review);
     if(!list.length){toast(state.reviewOnly?"별표 표시한 복습 문장이 없습니다.":"재생할 문장이 없습니다.");return;}
+    const navigationQueue=[...list];
     const index=list.findIndex(s=>s.id===state.currentSentenceId);
     list=index>=0?list.slice(index):list;
     if(!state.settings.autoNext)list=list.slice(0,1);
-    await runQueue(list);
+    await runQueue(list,false,{navigationQueue});
   }
 
   async function practiceSentence(s,runId=playbackGeneration) {
@@ -1171,17 +1350,20 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     stopEverything();switchView("studyView"); await runQueue(list);
   }
 
-  async function runQueue(list,forceContinuous=false) {
+  async function runQueue(list,forceContinuous=false,options={}) {
     if(session.playing)return;
-    session.playing=true; session.stopRequested=false; session.currentPlayQueue=list;
+    session.playing=true;session.paused=!!options.paused;session.stopRequested=false;session.currentPlayQueue=list;
+    session.navigationQueue=options.navigationQueue||list;session.queueForceContinuous=forceContinuous;
     const runId=++playbackGeneration;
     startPlaybackClock();
+    if(session.paused){pausePlaybackClock();setStatus("Ⅱ 일시정지");}
     try {
       for(let index=0;index<list.length;index++) {
         const s=list[index];
         if(session.stopRequested||runId!==playbackGeneration)break;
-        state.currentSentenceId=s.id; saveState(); renderStudy();
+        state.currentSentenceId=s.id;state.currentIndex=currentPlaylist()?.sentences.findIndex(sentence=>sentence.id===s.id)??0;saveState();renderStudy();
         await practiceSentence(s,runId);
+        if(session.stopRequested||runId!==playbackGeneration)break;
         if(!forceContinuous&&!state.settings.autoNext)break;
         const language=els.languageSelect.value||state.settings.language;
         if(index<list.length-1&&(language==="KR"||language==="EN")){
@@ -1291,7 +1473,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     else{resumePlaybackClock();session.resumeSpeech?.();setStatus(session.pauseSpeech?"🎧 재생 중":"지연 중");}
   }
 
-  function stopEverything() {
+  function stopEverything(options={}) {
     stopPlaybackClock();
     playbackGeneration++;
     session.stopRequested=true; session.paused=false; session.playing=false; session.currentPlayQueue=null;
@@ -1299,7 +1481,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     try{window.speechSynthesis?.cancel();}catch{}
     document.querySelectorAll("audio").forEach(audio=>audio.pause());
     if(session.timer){clearTimeout(session.timer);session.timer=null;}
-    if(session.mediaRecorder?.state==="recording") session.mediaRecorder.stop();
+    if(!options.keepRecording&&session.mediaRecorder?.state==="recording") session.mediaRecorder.stop();
     const pauseButton=$("#playBtn");if(pauseButton){pauseButton.textContent="▶";pauseButton.setAttribute("aria-label","재생");}
     els.countdownArea.classList.add("hidden"); setStatus("정지");
   }
