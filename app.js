@@ -34,7 +34,7 @@
     reviewOnly: false,
     selectedSentenceIds: [],
     selectedLessons: [],
-    selectedNumber: "",
+    selectedNumber: "", selectedNumbers: [],
     settings: {
       repeat: "3", delay: "5", speed: "0.8", language: "EN_KR",
       displayMode: "both", autoRecord: false, recordDuration: "5", autoNext: true
@@ -61,7 +61,7 @@
     autoRecordToggle: $("#autoRecordToggle"), recordDurationSelect: $("#recordDurationSelect"),
     playlistCards: $("#playlistCards"), playlistDetail: $("#playlistDetail"), detailPlaylistName: $("#detailPlaylistName"),
     detailTotal: $("#detailTotal"), sentenceList: $("#sentenceList"), sortSelect: $("#sortSelect"), playModeSelect: $("#playModeSelect"),
-    lessonCountBadge: $("#lessonCountBadge"), lessonSelect: $("#lessonSelect"), numberSelect: $("#numberSelect"),
+    lessonCountBadge: $("#lessonCountBadge"), lessonSelect: $("#lessonSelect"), numberPicker: $("#numberPicker"),
     selectedCount: $("#selectedCount"), recordingList: $("#recordingList"), recordingCount: $("#recordingCount"), recordingSize: $("#recordingSize"),
     recordingSelectionBar: $("#recordingSelectionBar"), recordingSelectedCount: $("#recordingSelectedCount"),
     playlistDialog: $("#playlistDialog"), sentenceDialog: $("#sentenceDialog"), settingsDialog: $("#settingsDialog"), toast: $("#toast")
@@ -156,8 +156,9 @@
       const selected = new Set(state.selectedLessons);
       list = list.filter(s => selected.has(lessonLabel(s.lesson)));
     }
-    if (state.selectedNumber && state.selectedLessons?.length === 1) {
-      list = list.filter(s => String(sentenceNumber(s)) === String(state.selectedNumber));
+    const selectedNumbers=getSelectedNumbers();
+    if(selectedNumbers.length){
+      list=list.filter(s=>selectedNumbers.includes(String(sentenceNumber(s))));
     }
     const sort = els.sortSelect?.value || "asc";
     const byLessonAndNumber = (a,b) =>
@@ -241,14 +242,54 @@
     els.lessonSelect.innerHTML = `<option value="">전체 레슨</option>` +
       lessons.map(l => `<option value="${escapeHtml(l)}">${escapeHtml(lessonDisplay(l))}</option>`).join("");
     els.lessonSelect.value = selected && lessons.includes(selected) ? selected : "";
-    const matching = p.sentences.filter(s => lessonLabel(s.lesson) === els.lessonSelect.value);
-    const numbers = [...new Set(matching.map(s => sentenceNumber(s)))].sort((a,b)=>a-b);
-    els.numberSelect.disabled = !els.lessonSelect.value;
-    els.numberSelect.innerHTML = `<option value="">전체 순번</option>` +
-      numbers.map(n => `<option value="${n}">${n}번</option>`).join("");
-    els.numberSelect.value = numbers.some(n => String(n) === String(state.selectedNumber)) ? String(state.selectedNumber) : "";
-    if (!els.lessonSelect.value) els.numberSelect.value = "";
+    const matching = selected ? p.sentences.filter(s=>lessonLabel(s.lesson)===selected) : p.sentences;
+    const numbers=[...new Set(matching.map(s=>sentenceNumber(s)))].sort((a,b)=>a-b);
+    const chosen=getSelectedNumbers();
+    els.numberPicker.innerHTML=`<button type="button" class="number-all ${chosen.length?"":"active"}" data-number-all>전체</button>`+
+      numbers.map(n=>`<label class="number-option"><input type="checkbox" data-number="${n}" ${chosen.includes(String(n))?"checked":""}>${n}번</label>`).join("");
   }
+  function getSelectedNumbers(){
+    return Array.isArray(state.selectedNumbers)&&state.selectedNumbers.length ? state.selectedNumbers.map(String) : state.selectedNumber ? [String(state.selectedNumber)] : [];
+  }
+  function commitNumberSelection(){
+    state.selectedSentenceIds=[];
+    const first=sortedSentences()[0];
+    if(first){state.currentSentenceId=first.id;renderStudy();}
+    saveState();renderPlaylistDetail();
+  }
+  function bindNumberPicker(){
+    let drag=null;
+    const paint=input=>{
+      if(!input||drag.visited.has(input.dataset.number))return;
+      drag.visited.add(input.dataset.number);
+      const selected=new Set(getSelectedNumbers());
+      if(drag.checked)selected.add(input.dataset.number);else selected.delete(input.dataset.number);
+      state.selectedNumbers=[...selected];state.selectedNumber="";
+      input.checked=drag.checked;
+    };
+    els.numberPicker.addEventListener("click",e=>{
+      if(e.target.closest("[data-number-all]")){state.selectedNumbers=[];state.selectedNumber="";commitNumberSelection();}
+    });
+    els.numberPicker.addEventListener("change",e=>{
+      const input=e.target.closest("[data-number]");if(!input)return;
+      const selected=new Set(getSelectedNumbers());
+      if(input.checked)selected.add(input.dataset.number);else selected.delete(input.dataset.number);
+      state.selectedNumbers=[...selected];state.selectedNumber="";commitNumberSelection();
+    });
+    els.numberPicker.addEventListener("pointerdown",e=>{
+      if(e.button!==0)return;
+      const input=e.target.closest(".number-option")?.querySelector("input");if(!input)return;
+      e.preventDefault();drag={checked:!input.checked,visited:new Set(),pointerId:e.pointerId};paint(input);
+    });
+    document.addEventListener("pointermove",e=>{
+      if(!drag||drag.pointerId!==e.pointerId)return;
+      const option=document.elementFromPoint(e.clientX,e.clientY)?.closest(".number-option");
+      if(option&&els.numberPicker.contains(option))paint(option.querySelector("input"));
+    });
+    const finish=e=>{if(!drag||drag.pointerId!==e.pointerId)return;drag=null;commitNumberSelection();};
+    document.addEventListener("pointerup",finish);document.addEventListener("pointercancel",finish);
+  }
+
   function renderPlaylistDetail() {
     const p = currentPlaylist();
     if (!p) return;
@@ -334,21 +375,11 @@
     els.sortSelect.addEventListener("change",renderPlaylistDetail);
     els.lessonSelect.addEventListener("change", () => {
       state.selectedLessons = els.lessonSelect.value ? [els.lessonSelect.value] : [];
-      state.selectedNumber = "";
+      state.selectedNumber = ""; state.selectedNumbers=[];
       state.selectedSentenceIds = [];
       saveState(); renderPlaylistDetail();
     });
-    els.numberSelect.addEventListener("change", () => {
-      state.selectedNumber = els.numberSelect.value;
-      state.selectedSentenceIds = [];
-      if (state.selectedNumber && state.selectedLessons.length === 1) {
-        const found = currentPlaylist()?.sentences.find(s =>
-          lessonLabel(s.lesson) === state.selectedLessons[0] &&
-          String(sentenceNumber(s)) === String(state.selectedNumber));
-        if (found) { state.currentSentenceId = found.id; renderStudy(); }
-      }
-      saveState(); renderPlaylistDetail();
-    });
+    bindNumberPicker();
     if (els.playModeSelect) els.playModeSelect.addEventListener("change",()=>{state.playMode=els.playModeSelect.value;saveState()});
     $("#reviewOnlyBtn").addEventListener("click",()=>{state.reviewOnly=!state.reviewOnly;renderPlaylistDetail();toast(state.reviewOnly?"복습 문장만 표시합니다.":"전체 문장을 표시합니다.")});
     $("#playAllBtn").addEventListener("click",()=>startPlaylistPractice());
@@ -427,7 +458,7 @@
     if (e.target.closest('[data-action="play-playlist"]')) {
       switchView("studyView"); renderStudy(); startPlaylistPractice();
     } else {
-      state.reviewOnly=false; state.selectedSentenceIds=[]; state.selectedLessons=[]; state.selectedNumber="";
+      state.reviewOnly=false; state.selectedSentenceIds=[]; state.selectedLessons=[]; state.selectedNumber="";state.selectedNumbers=[];
       els.playlistDetail.classList.remove("hidden"); renderPlaylistDetail(); renderStudy();
     }
   }
@@ -484,7 +515,7 @@
     if(!name){toast("플레이리스트 제목을 입력해 주세요.");return;}
     let p=state.playlists.find(x=>x.name===name);
     if(!p){ p={id:uid(),name,description:"",sentences:[]}; state.playlists.push(p); }
-    state.currentPlaylistId=p.id; state.currentSentenceId=null; state.selectedLessons=[]; state.selectedNumber="";
+    state.currentPlaylistId=p.id; state.currentSentenceId=null; state.selectedLessons=[]; state.selectedNumber="";state.selectedNumbers=[];
     if(file) {
       importFileToPlaylist(file,p).then(()=>{
         normalizeSentenceNumbers(state);

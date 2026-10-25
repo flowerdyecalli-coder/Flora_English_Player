@@ -125,3 +125,13 @@ dialog{border:0;border-radius:22px;padding:0;width:min(calc(100% - 28px),460px);
 .reference-settings select:focus-visible,.reference-settings button:focus-visible{outline:2px solid var(--control-blue);outline-offset:3px;border-radius:5px}
 .player-card .countdown{margin:0 0 8px}
 @media(max-width:390px){.player-card{padding:12px}.player-card .round-btn.primary{width:56px;height:56px}.reference-settings .setting-icon{font-size:27px}}
+
+/* Ordinal filters work across every lesson. */
+.lesson-toolbar{flex-wrap:wrap;overflow:visible;align-items:flex-end}
+.lesson-filter{min-width:0}
+.number-picker{display:flex;flex-wrap:wrap;gap:6px;padding:4px 0;touch-action:none;user-select:none}
+.number-option,.number-all{display:inline-flex;align-items:center;justify-content:center;gap:4px;border:1px solid #d4dfe7;border-radius:9px;padding:9px 8px;background:#fff;color:#365369;font-size:13px;white-space:nowrap;cursor:pointer;min-height:40px}
+.number-option:has(input:checked),.number-all.active{background:#e5f0f7;border-color:#2d6985;color:#23566d;font-weight:700}
+.number-option input{accent-color:#2d6985;width:16px;height:16px;margin:0}
+
+.lesson-toolbar .number-select-field{flex:1 1 100%;order:5}
