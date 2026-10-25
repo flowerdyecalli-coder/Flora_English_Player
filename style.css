@@ -345,3 +345,6 @@ dialog{border:0;border-radius:22px;padding:0;width:min(calc(100% - 28px),460px);
 .reference-settings .clock-icon svg{width:38.6667px;height:38.6667px;}
 
 .number-all input[type="radio"]{accent-color:#2d6985;width:16px;height:16px;margin:0;}
+
+/* 레슨·순번 전체선택 */
+.number-all input[type="checkbox"]{accent-color:#2d6985;width:16px;height:16px;margin:0;}
