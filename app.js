@@ -549,7 +549,7 @@
       p.sentences=imported;
       return;
     }
-    throw new Error("unsupported file");
+    throw new Error("CSV 또는 TXT 파일을 선택해 주세요. 엑셀 파일은 CSV 형식으로 저장한 뒤 선택해 주세요.");
   }
 
   function parseCSV(text) {
@@ -616,23 +616,16 @@
     state.currentSentenceId=s.id; saveState(); els.sentenceDialog.close(); renderAll(); toast("문장을 저장했습니다.");
   }
 
-  async function startPractice(queue=null) {
+  async function startPractice() {
     if(session.paused){togglePause();return;}
     if(session.playing){toast("이미 재생 중입니다.");return;}
-    if(state.reviewOnly){
-      const list=sortedSentences().filter(s=>s.review);
-      if(!list.length){toast("별표 표시한 복습 문장이 없습니다.");return;}
-      const index=list.findIndex(s=>s.id===state.currentSentenceId);
-      await runQueue(index>=0 ? list.slice(index) : list);
-      return;
-    }
-    const s=currentSentence(); if(!s)return;
-    session.stopRequested=false; session.paused=false; session.playing=true;
-    session.currentPlayQueue=queue;
-    const runId=++playbackGeneration;
-    try { await practiceSentence(s,runId); }
-    catch(err){ if(err?.message!=="STOP") console.error(err); }
-    finally { if(runId===playbackGeneration){session.playing=false; setStatus("준비"); session.currentPlayQueue=null;} }
+    let list=sortedSentences();
+    if(state.reviewOnly)list=list.filter(s=>s.review);
+    if(!list.length){toast(state.reviewOnly?"별표 표시한 복습 문장이 없습니다.":"재생할 문장이 없습니다.");return;}
+    const index=list.findIndex(s=>s.id===state.currentSentenceId);
+    list=index>=0?list.slice(index):list;
+    if(!state.settings.autoNext)list=list.slice(0,1);
+    await runQueue(list);
   }
 
   async function practiceSentence(s,runId=playbackGeneration) {
@@ -663,9 +656,6 @@
     check();
     s.completed=true; s.lastStudiedAt=Date.now(); saveState(); renderAll();
 
-    if(state.settings.autoNext && repeat!==Infinity && !session.stopRequested && !session.currentPlayQueue) {
-      moveSentence(1);
-    }
   }
 
   async function startPlaylistPractice() {
@@ -693,6 +683,7 @@
         if(session.stopRequested||runId!==playbackGeneration)break;
         state.currentSentenceId=s.id; saveState(); renderStudy();
         await practiceSentence(s,runId);
+        if(!state.settings.autoNext)break;
       }
     } catch(err){if(err?.message!=="STOP")console.error(err)}
     finally{if(runId===playbackGeneration){session.playing=false;session.currentPlayQueue=null;setStatus("준비")}}

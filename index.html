@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#ffffff" />
   <title>FLORA English Player</title>
-  <link rel="stylesheet" href="style.css?v=20261025-stable-delay" />
+  <link rel="stylesheet" href="style.css?v=20261025-continuous" />
 </head>
 <body>
   <div id="appShell" class="app-shell">
@@ -171,8 +171,9 @@
       <h3>플레이리스트 추가</h3>
       <label>이름<input id="playlistNameInput" placeholder="예: 혜영쌤인스타기본" /></label>
       <label>파일 가져오기
-        <input id="importFileInput" type="file" accept=".csv,.txt" />
+        <input id="importFileInput" type="file" />
       </label>
+      <p class="help">휴대폰에서는 ‘파일’ 또는 ‘찾아보기’에서 다운로드 폴더의 CSV 파일을 선택해 주세요. 사진 선택 창이 열리면 파일 앱으로 이동해 주세요.</p>
       <p class="help">CSV 열 순서: LESSON, 순번, ENGLISH, KOREAN, DESCRIPTION. 레슨을 선택하면 해당 레슨의 순번을 고를 수 있습니다.</p>
       <div class="dialog-actions">
         <button value="cancel">취소</button>
@@ -228,6 +229,6 @@
   </dialog>
 
   <div id="toast" class="toast" aria-live="polite"></div>
-  <script src="app.js?v=20261025-stable-delay"></script>
+  <script src="app.js?v=20261025-continuous"></script>
 </body>
 </html>
