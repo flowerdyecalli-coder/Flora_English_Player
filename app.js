@@ -58,7 +58,6 @@
     favoriteBtn: $("#favoriteBtn"), englishText: $("#englishText"), koreanText: $("#koreanText"), descriptionArea: $("#descriptionArea"), descriptionText: $("#descriptionText"),
     playStatus: $("#playStatus"), timerText: $("#timerText"), countdownArea: $("#countdownArea"), countdownNumber: $("#countdownNumber"), countdownLabel: $("#countdownLabel"),
     repeatSelect: $("#repeatSelect"), delaySelect: $("#delaySelect"), speedSelect: $("#speedSelect"), languageSelect: $("#languageSelect"),
-    autoRecordToggle: $("#autoRecordToggle"), recordDurationSelect: $("#recordDurationSelect"),
     playlistCards: $("#playlistCards"), playlistDetail: $("#playlistDetail"), detailPlaylistName: $("#detailPlaylistName"),
     detailTotal: $("#detailTotal"), sentenceList: $("#sentenceList"), sortSelect: $("#sortSelect"), playModeSelect: $("#playModeSelect"),
     lessonCountBadge: $("#lessonCountBadge"), lessonSelect: $("#lessonSelect"), numberPicker: $("#numberPicker"),
@@ -70,6 +69,8 @@
   init();
 
   function init() {
+    const version=document.querySelector(".version-badge");
+    if(version){version.textContent="1.011";version.setAttribute("aria-label","실행 버전 1.011");}
     state.settings.autoRecord=false;
     for (let i=1;i<=10;i++) els.delaySelect.insertAdjacentHTML("beforeend", `<option value="${i}">${i}초</option>`);
     for (let i=5;i<=10;i++) {
@@ -187,6 +188,23 @@
     if (!els.playlistDetail.classList.contains("hidden")) renderPlaylistDetail();
   }
 
+  function highlightSentencePattern(sentence){
+    const text=String(sentence.english||"");
+    const description=String(sentence.description||"").split(/\r?\n/)[0];
+    const candidate=/[a-z]/i.test(description)?description:String(sentence.structure||"");
+    const prefix=candidate.replace(/^\s*(?:구문|패턴|기본\s*구문)\s*[:：]\s*/,"").split(/[+~～]/)[0].trim();
+    const tokens=prefix.match(/[A-Za-z]+(?:['’][A-Za-z]+)*/g)||[];
+    if(!tokens.length||/[가-힣]/.test(prefix))return escapeHtml(text);
+    const phrase=tokens.map(token=>token.replace(/['’]/g,"['’]")).join("\\s+");
+    const matcher=new RegExp("\\b"+phrase+"(?![A-Za-z’'])","gi");
+    let result="",end=0;
+    for(const match of text.matchAll(matcher)){
+      result+=escapeHtml(text.slice(end,match.index))+`<span class="pattern-highlight">${escapeHtml(match[0])}</span>`;
+      end=match.index+match[0].length;
+    }
+    return result+escapeHtml(text.slice(end));
+  }
+
   function renderStudy() {
     requestAnimationFrame(fitLandscapeSentences);
     const p = currentPlaylist();
@@ -208,7 +226,7 @@
     const idx = p.sentences.findIndex(x=>x.id===s.id);
     state.currentIndex = idx >= 0 ? idx : 0;
     els.sentenceCounter.textContent = `${state.currentIndex+1} / ${p.sentences.length}`;
-    els.englishText.textContent = s.english || "";
+    els.englishText.innerHTML = highlightSentencePattern(s);
     els.koreanText.textContent = s.korean || "";
     els.descriptionText.textContent = s.description || "";
     els.descriptionArea.classList.toggle("hidden", !s.description || state.settings.showInfo===false);
@@ -216,6 +234,7 @@
     els.favoriteBtn.classList.toggle("active", !!s.review);
 
     const language=els.languageSelect.value||state.settings.language;
+    els.koreanText.classList.toggle("korean-only",language==="KR");
     els.englishText.classList.toggle("hidden",language==="KR");
     els.koreanText.classList.toggle("hidden",language==="EN"||!s.korean);
   }
@@ -247,13 +266,13 @@
     const lessons = playlistLessons(p);
     const selected = state.selectedLessons?.length === 1 ? state.selectedLessons[0] : "";
     els.lessonCountBadge.textContent = `${p.sentences.length}개`;
-    els.lessonSelect.innerHTML = `<option value="">전체 레슨</option>` +
+    els.lessonSelect.innerHTML = `<option value="">전체</option>` +
       lessons.map(l => `<option value="${escapeHtml(l)}">${escapeHtml(lessonDisplay(l))}</option>`).join("");
     els.lessonSelect.value = selected && lessons.includes(selected) ? selected : "";
     const matching = selected ? p.sentences.filter(s=>lessonLabel(s.lesson)===selected) : p.sentences;
     const numbers=[...new Set(matching.map(s=>sentenceNumber(s)))].sort((a,b)=>a-b);
     const chosen=getSelectedNumbers();
-    $("#numberDropdownSummary").textContent=chosen.length?chosen.map(n=>`${n}번`).join(", "):"전체 순번";
+    $("#numberDropdownSummary").textContent=chosen.length?chosen.map(n=>`${n}번`).join(", "):"전체";
     els.numberPicker.innerHTML=`<button type="button" class="number-all ${chosen.length?"":"active"}" data-number-all>전체</button>`+
       numbers.map(n=>`<label class="number-option"><input type="checkbox" data-number="${n}" ${chosen.includes(String(n))?"checked":""}>${n}번</label>`).join("");
   }
@@ -319,8 +338,6 @@
     els.delaySelect.value = state.settings.delay;
     els.speedSelect.value = state.settings.speed;
     els.languageSelect.value = state.settings.language;
-    els.autoRecordToggle.checked = !!state.settings.autoRecord;
-    els.recordDurationSelect.value = state.settings.recordDuration;
     $("#autoNextToggle").checked = !!state.settings.autoNext;
     syncControlValues();
   }
@@ -348,18 +365,16 @@
     $("#stopBtn").addEventListener("click",stopEverything);
     $("#recordBtn").addEventListener("click",toggleManualRecording);
 
-    [els.repeatSelect,els.delaySelect,els.speedSelect,els.languageSelect,els.recordDurationSelect].forEach(el=>{
+    [els.repeatSelect,els.delaySelect,els.speedSelect,els.languageSelect].forEach(el=>{
       el.addEventListener("change",()=>{
         state.settings.repeat=els.repeatSelect.value;
         state.settings.delay=els.delaySelect.value;
         state.settings.speed=els.speedSelect.value;
         state.settings.language=els.languageSelect.value;
-        state.settings.recordDuration=els.recordDurationSelect.value;
         saveState(); renderPlaylists();
       });
     });
     els.languageSelect.addEventListener("change",renderStudy);
-    els.autoRecordToggle.addEventListener("change",()=>{state.settings.autoRecord=els.autoRecordToggle.checked;saveState()});
     $("#autoNextToggle").addEventListener("change",()=>{state.settings.autoNext=$("#autoNextToggle").checked;$("#advanceSelect").value=state.settings.autoNext?"next":"once";syncControlValues();saveState()});
 
     els.playlistCards.addEventListener("click", handlePlaylistCardClick);
@@ -422,7 +437,7 @@
 
   function fitLandscapeSentences(){
     const landscape=window.matchMedia("(orientation:landscape) and (max-height:600px) and (pointer:coarse)").matches;
-    for(const [element,base] of [[els.englishText,28],[els.koreanText,19]]){
+    for(const [element,base] of [[els.koreanText,19]]){
       element.style.fontSize="";
       if(!landscape||!element.clientWidth||!element.textContent)continue;
       element.style.fontSize=`${base}px`;
@@ -766,22 +781,16 @@
         if(s.korean){
           await speakText(s.korean,"ko-KR");
           check();
-          const selectedDelay=Number(els.delaySelect.value);
-          const savedDelay=Number(state.settings.delay);
-          const seconds=Number.isFinite(selectedDelay)&&selectedDelay>0?selectedDelay:Number.isFinite(savedDelay)&&savedDelay>0?savedDelay:5;
-          await countdown(seconds,"영어 대기");
+          await waitBeforeEnglish();
           check();
         }
         await speakText(s.english,"en-US");
       }
       check();
 
-      if(state.settings.autoRecord) {
-        setStatus("🎤 녹음 중");
-        const duration=state.settings.recordDuration;
-        await startRecording(duration==="manual"?null:Number(duration)*1000, s);
+      if((lang==="KR"||lang==="EN")&&count<repeat){
+        await waitForDelay("다음 문장 대기");check();
       }
-
     }
     check();
     s.completed=true; s.lastStudiedAt=Date.now(); saveState(); renderAll();
@@ -808,11 +817,16 @@
     session.playing=true; session.stopRequested=false; session.currentPlayQueue=list;
     const runId=++playbackGeneration;
     try {
-      for(const s of list) {
+      for(let index=0;index<list.length;index++) {
+        const s=list[index];
         if(session.stopRequested||runId!==playbackGeneration)break;
         state.currentSentenceId=s.id; saveState(); renderStudy();
         await practiceSentence(s,runId);
         if(!forceContinuous&&!state.settings.autoNext)break;
+        const language=els.languageSelect.value||state.settings.language;
+        if(index<list.length-1&&(language==="KR"||language==="EN")){
+          await waitForDelay("다음 문장 대기");
+        }
       }
     } catch(err){if(err?.message!=="STOP")console.error(err)}
     finally{if(runId===playbackGeneration){session.playing=false;session.currentPlayQueue=null;setStatus("준비")}}
@@ -905,22 +919,31 @@
     els.countdownArea.classList.add("hidden"); setStatus("정지");
   }
 
-  function countdown(seconds,label="지연") {
+  function waitBeforeEnglish(){return waitForDelay("한글 → 영어 대기");}
+  function waitForDelay(label="지연"){
+    const selected=Number(els.delaySelect.value),saved=Number(state.settings.delay);
+    const seconds=Number.isFinite(selected)&&selected>0?selected:Number.isFinite(saved)&&saved>0?saved:5;
     return new Promise((resolve,reject)=>{
-      let remaining=Math.max(0,Number(seconds))*1000,last=Date.now(),timer,finished=false;
-      const finish=(err)=>{if(finished)return;finished=true;clearInterval(timer);playbackCancellations.delete(cancel);els.countdownArea.classList.add("hidden");if(err)reject(err);else resolve();};
+      const now=()=>window.performance?.now?window.performance.now():Date.now();
+      let remaining=seconds*1000,last=now(),timer,finished=false;
+      const cleanup=()=>{clearTimeout(timer);playbackCancellations.delete(cancel);els.countdownArea.classList.add("hidden");};
+      const finish=error=>{if(finished)return;finished=true;cleanup();if(error)reject(error);else resolve();};
       const cancel=()=>finish(new Error("STOP"));
       playbackCancellations.add(cancel);
-      els.countdownArea.classList.remove("hidden");els.countdownLabel.textContent=label;
-      els.countdownNumber.textContent=`${Math.ceil(remaining/1000)}초`;setStatus(`${label} 중`);
-      timer=setInterval(()=>{
-        const now=Date.now();
+      els.countdownLabel.textContent=label;
+      els.countdownNumber.textContent=`${seconds}초`;
+      els.countdownArea.classList.remove("hidden");
+      setStatus(label);
+      const tick=()=>{
         if(session.stopRequested){cancel();return;}
-        if(!session.paused)remaining-=now-last;
-        last=now;
+        const current=now();
+        if(!session.paused)remaining-=Math.max(0,current-last);
+        last=current;
         els.countdownNumber.textContent=`${Math.max(0,Math.ceil(remaining/1000))}초`;
-        if(remaining<=0)finish();
-      },100);
+        if(remaining<=0){finish();return;}
+        timer=setTimeout(tick,50);
+      };
+      timer=setTimeout(tick,50);
     });
   }
 

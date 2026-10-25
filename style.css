@@ -295,3 +295,22 @@ dialog{border:0;border-radius:22px;padding:0;width:min(calc(100% - 28px),460px);
 .number-dropdown .number-picker{min-width:160px}
 .number-dropdown .number-option{white-space:nowrap;min-width:90px}
 .lesson-toolbar .shuffle-btn{border:1px solid #d5e1ea;border-radius:10px;background:#e8f1f8;color:#2d6985;font-weight:700;font-size:15px;padding:10px 12px;white-space:nowrap;min-height:42px}
+
+.korean-text.korean-only{font-weight:800;color:var(--text)}
+
+/* Compact lesson, ordinal, sort and shuffle controls share the top row. */
+.lesson-toolbar{display:grid;grid-template-columns:auto minmax(68px,1fr) minmax(68px,1fr) auto auto;gap:5px;align-items:end;overflow:visible}
+.lesson-toolbar .lesson-select-field,.lesson-toolbar .number-select-field{min-width:0;max-width:none;width:100%;order:0}
+.lesson-toolbar .lesson-select-field select{padding:9px 5px;font-size:15px}
+.lesson-toolbar .number-dropdown{min-width:0;width:100%}
+.lesson-toolbar .number-dropdown summary{min-width:0;padding:9px 6px;font-size:15px;gap:4px;min-height:42px;white-space:nowrap;overflow:hidden}
+.lesson-toolbar #sortSelect{width:38px;min-width:0;max-width:38px;padding:10px 2px;font-size:14px;min-height:42px}
+.lesson-toolbar .shuffle-btn{padding:10px 7px;font-size:14px;min-height:42px}
+.lesson-toolbar-count{padding:10px 4px;font-size:12px;min-height:42px}
+@media(max-width:350px){.lesson-toolbar .lesson-toolbar-count{display:none}.lesson-toolbar{grid-template-columns:minmax(64px,1fr) minmax(64px,1fr) auto auto}}
+
+/* Reserve three lines for the English sentence, including in landscape. */
+#studyView .english-text{white-space:normal;word-break:normal;overflow-wrap:anywhere;overflow-x:visible;line-height:1.4;min-height:4.2em;height:auto;max-height:none}
+@media(orientation:landscape) and (max-height:600px) and (pointer:coarse){#studyView .english-text{font-size:28px;white-space:normal;line-height:1.4;min-height:4.2em;overflow-x:visible;touch-action:pan-y pinch-zoom}}
+
+.english-text .pattern-highlight{color:#1565c0;font-weight:inherit}
