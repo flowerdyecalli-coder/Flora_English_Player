@@ -480,7 +480,7 @@
         state.currentSentenceId=p.sentences[0]?.id||null; saveState(); renderAll();
         els.playlistDialog.close(); $("#playlistForm").reset();
         toast(`"${name}"에 ${p.sentences.length}개 문장을 가져왔습니다.`);
-      }).catch(err=>{console.error(err);toast("파일을 읽지 못했습니다.");});
+      }).catch(err=>{console.error(err);toast(err.message||"파일을 읽지 못했습니다.");});
     } else {
       saveState(); els.playlistDialog.close(); $("#playlistForm").reset(); renderAll(); toast("플레이리스트를 추가했습니다.");
     }
@@ -493,21 +493,27 @@
       return;
     }
     if(file.name.toLowerCase().endsWith(".csv")) {
-      const rows=parseCSV(text); if(!rows.length)return;
+      const rows=parseCSV(text);
+      if(!rows.length) throw new Error("파일에 문장이 없습니다.");
       const headers=rows[0].map(h=>h.trim().replace(/^\uFEFF/,"").toUpperCase());
-      p.sentences=rows.slice(1).filter(r=>r.some(Boolean)).map((r,i)=>{
+      if(!headers.some(h=>["ENGLISH","EXAMPLE_EN"].includes(h))) {
+        throw new Error("영어 문장 열을 찾지 못했습니다. ENGLISH 또는 EXAMPLE_EN 열을 확인해 주세요.");
+      }
+      const imported=rows.slice(1).filter(r=>r.some(Boolean)).map((r,i)=>{
         const v=(name)=>r[headers.indexOf(name)]??"";
         return newSentence({
-          order:Number(v("ORDER"))||i+1, lesson:v("LESSON")||v("레슨"),
+          order:Number(v("ORDER"))||i+1, lesson:v("LESSON")||v("레슨")||v("DAY"),
           number: Number(v("순번")||v("NUMBER")||v("SEQUENCE")||v("SEQ"))||null,
-          english:v("ENGLISH"), korean:v("KOREAN"), description:v("DESCRIPTION")||v("설명"),
+          english:v("ENGLISH")||v("EXAMPLE_EN"), korean:v("KOREAN")||v("EXAMPLE_KR"), description:v("DESCRIPTION")||v("설명"),
           grammar:v("GRAMMAR"), structure:v("STRUCTURE"),
           words:[
             {word:v("WORD_1"),meaning:v("WORD_1_MEANING"),pronunciation:v("WORD_1_PRONUNCIATION"),pos:v("WORD_1_POS")},
             {word:v("WORD_2"),meaning:v("WORD_2_MEANING"),pronunciation:v("WORD_2_PRONUNCIATION"),pos:v("WORD_2_POS")}
           ]
         });
-      }).filter(s=>s.english);
+      }).filter(s=>s.english.trim());
+      if(!imported.length) throw new Error("가져올 영어 문장이 없습니다. 파일 내용을 확인해 주세요.");
+      p.sentences=imported;
       return;
     }
     throw new Error("unsupported file");
