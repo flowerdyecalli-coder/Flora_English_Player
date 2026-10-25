@@ -331,3 +331,9 @@ dialog{border:0;border-radius:22px;padding:0;width:min(calc(100% - 28px),460px);
 
 .recordings-select-all{display:flex;align-items:center;gap:9px;font-size:17px;font-weight:700;margin:14px 0;}
 .recordings-select-all input{width:22px;height:22px;accent-color:var(--primary);}
+
+/* 지연·속도 시계 아이콘을 기존 29px의 두 배로 표시 */
+.reference-settings .icon-select{height:58px;display:flex;align-items:center;justify-content:center;}
+.reference-settings .icon-select .clock-icon{font-size:58px;height:58px;}
+.reference-settings .icon-select select{height:100%;}
+.reference-settings .icon-action{height:58px;}
