@@ -86,3 +86,15 @@ dialog{border:0;border-radius:22px;padding:0;width:min(calc(100% - 28px),460px);
   .countdown strong{font-size:32px;margin-top:2px}
   .bottom-nav{height:calc(60px + env(safe-area-inset-bottom))}
 }
+
+/* 레슨 -> 순번 선택 콤보: 작은 화면에서도 한 줄씩 편하게 표시 */
+.lesson-toolbar{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr) auto;align-items:end;gap:7px;overflow:visible}
+.lesson-toolbar-count{font-size:12px;padding:10px 7px;white-space:nowrap}
+.lesson-select-field{display:flex;flex-direction:column;gap:4px;min-width:0;color:#5e6671;font-size:11px;font-weight:800}
+.lesson-select-field select{width:100%;min-width:0;background:#e8f1f8;border:1px solid #d5e1ea;border-radius:10px;padding:9px 5px;font-size:13px;font-weight:750}
+.lesson-select-field select:disabled{opacity:.50;cursor:not-allowed}
+.lesson-toolbar #sortSelect{padding:9px 5px;border-radius:10px;font-size:12px}
+.description-area{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
+.description-label{font-size:12px;font-weight:800;color:#6b7280;margin-bottom:4px}
+.description-text{white-space:pre-line;font-size:13px;line-height:1.45;color:#434c57;max-height:4.35em;overflow-y:auto;overflow-wrap:anywhere}
+@media(max-width:390px){.lesson-toolbar{gap:5px}.lesson-select-field select{font-size:12px;padding:9px 2px}.lesson-toolbar-count{padding:8px 4px}}

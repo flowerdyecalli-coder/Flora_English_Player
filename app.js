@@ -34,6 +34,7 @@
     reviewOnly: false,
     selectedSentenceIds: [],
     selectedLessons: [],
+    selectedNumber: "",
     settings: {
       repeat: "3", delay: "5", speed: "0.8", language: "EN_KR",
       displayMode: "both", autoRecord: false, recordDuration: "5", autoNext: true
@@ -41,6 +42,7 @@
   };
 
   let state = loadState();
+  normalizeSentenceNumbers(state);
   if (!state.currentPlaylistId && state.playlists[0]) state.currentPlaylistId = state.playlists[0].id;
   if (!state.currentSentenceId && state.playlists[0]?.sentences[0]) state.currentSentenceId = state.playlists[0].sentences[0].id;
 
@@ -53,13 +55,13 @@
   const els = {
     views: $$(".view"), navBtns: $$(".nav-btn"),
     currentPlaylistName: $("#currentPlaylistName"), sentenceCounter: $("#sentenceCounter"),
-    favoriteBtn: $("#favoriteBtn"), englishText: $("#englishText"), koreanText: $("#koreanText"),
+    favoriteBtn: $("#favoriteBtn"), englishText: $("#englishText"), koreanText: $("#koreanText"), descriptionArea: $("#descriptionArea"), descriptionText: $("#descriptionText"),
     playStatus: $("#playStatus"), timerText: $("#timerText"), countdownArea: $("#countdownArea"), countdownNumber: $("#countdownNumber"), countdownLabel: $("#countdownLabel"),
     repeatSelect: $("#repeatSelect"), delaySelect: $("#delaySelect"), speedSelect: $("#speedSelect"), languageSelect: $("#languageSelect"),
     autoRecordToggle: $("#autoRecordToggle"), recordDurationSelect: $("#recordDurationSelect"),
     playlistCards: $("#playlistCards"), playlistDetail: $("#playlistDetail"), detailPlaylistName: $("#detailPlaylistName"),
     detailTotal: $("#detailTotal"), sentenceList: $("#sentenceList"), sortSelect: $("#sortSelect"), playModeSelect: $("#playModeSelect"),
-    lessonCountBadge: $("#lessonCountBadge"), lessonPickerBtn: $("#lessonPickerBtn"), lessonPickerPanel: $("#lessonPickerPanel"), lessonCheckboxList: $("#lessonCheckboxList"),
+    lessonCountBadge: $("#lessonCountBadge"), lessonSelect: $("#lessonSelect"), numberSelect: $("#numberSelect"),
     selectedCount: $("#selectedCount"), recordingList: $("#recordingList"), recordingCount: $("#recordingCount"), recordingSize: $("#recordingSize"),
     recordingSelectionBar: $("#recordingSelectionBar"), recordingSelectedCount: $("#recordingSelectedCount"),
     playlistDialog: $("#playlistDialog"), sentenceDialog: $("#sentenceDialog"), settingsDialog: $("#settingsDialog"), toast: $("#toast")
@@ -104,6 +106,32 @@
   function currentPlaylist() {
     return state.playlists.find(p => p.id === state.currentPlaylistId) || state.playlists[0] || null;
   }
+  // Older versions had a global ORDER but no per-lesson number.
+  // Give those rows a local 1,2,3... in each lesson without deleting existing user data.
+  function normalizeSentenceNumbers(data) {
+    for (const playlist of data.playlists || []) {
+      const groupUsed = new Map();
+      const ordered = [...(playlist.sentences || [])].sort((a,b)=>(Number(a.order)||0)-(Number(b.order)||0));
+      for (const s of ordered) {
+        const lesson = lessonLabel(s.lesson);
+        if (!groupUsed.has(lesson)) groupUsed.set(lesson, new Set());
+        const used = groupUsed.get(lesson);
+        let n = Number(s.number);
+        if (!Number.isInteger(n) || n < 1) {
+          n = 1;
+          while (used.has(n)) n++;
+          s.number = n;
+        }
+        used.add(n);
+        if (!s.description) s.description = "";
+      }
+    }
+  }
+  function sentenceNumber(s) { return Number(s.number) || 1; }
+  function lessonDisplay(value) {
+    const n = lessonNumber(value);
+    return n === 9999 ? (String(value||"").trim() || "기타") : `레슨 ${n}`;
+  }
   function lessonNumber(value) {
     const m=String(value||"").match(/(\d{1,3})/);
     return m ? Number(m[1]) : 9999;
@@ -124,14 +152,22 @@
   function sortedSentences(playlist = currentPlaylist()) {
     if (!playlist) return [];
     let list = [...playlist.sentences];
-    if(state.selectedLessons?.length) {
-      const selected=new Set(state.selectedLessons);
-      list=list.filter(s=>selected.has(lessonLabel(s.lesson)));
+    if (state.selectedLessons?.length) {
+      const selected = new Set(state.selectedLessons);
+      list = list.filter(s => selected.has(lessonLabel(s.lesson)));
+    }
+    if (state.selectedNumber && state.selectedLessons?.length === 1) {
+      list = list.filter(s => String(sentenceNumber(s)) === String(state.selectedNumber));
     }
     const sort = els.sortSelect?.value || "asc";
-    if (sort === "desc") list.sort((a,b)=>b.order-a.order);
+    const byLessonAndNumber = (a,b) =>
+      lessonNumber(a.lesson) - lessonNumber(b.lesson) ||
+      lessonLabel(a.lesson).localeCompare(lessonLabel(b.lesson)) ||
+      sentenceNumber(a) - sentenceNumber(b) ||
+      (Number(a.order)||0) - (Number(b.order)||0);
+    if (sort === "desc") list.sort((a,b)=>byLessonAndNumber(b,a));
     else if (sort === "shuffle") list=shuffle(list);
-    else list.sort((a,b)=>a.order-b.order);
+    else list.sort(byLessonAndNumber);
     return list;
   }
   function currentSentence() {
@@ -155,6 +191,8 @@
       els.sentenceCounter.textContent = "0 / 0";
       els.englishText.textContent = "플레이리스트에서 문장을 추가해 주세요.";
       els.koreanText.textContent = "";
+      els.descriptionText.textContent = "";
+      els.descriptionArea.classList.add("hidden");
       els.favoriteBtn.textContent = "☆";
       return;
     }
@@ -164,6 +202,8 @@
     els.sentenceCounter.textContent = `${state.currentIndex+1} / ${p.sentences.length}`;
     els.englishText.textContent = s.english || "";
     els.koreanText.textContent = s.korean || "";
+    els.descriptionText.textContent = s.description || "";
+    els.descriptionArea.classList.toggle("hidden", !s.description);
     els.favoriteBtn.textContent = s.review ? "★" : "☆";
     els.favoriteBtn.classList.toggle("active", !!s.review);
 
@@ -195,13 +235,20 @@
   }
 
   function renderLessonPicker(p) {
-    const lessons=playlistLessons(p);
-    const selected=new Set(state.selectedLessons||[]);
-    els.lessonCountBadge.textContent=`${p.sentences.length}개`;
-    els.lessonPickerBtn.textContent=selected.size ? `${selected.size}개 레슨 선택 ▾` : `전체 레슨 ▾`;
-    els.lessonCheckboxList.innerHTML = `<label class="lesson-option lesson-all"><input type="checkbox" data-lesson="__ALL__" ${selected.size===0?"checked":""}> 전체 레슨</label>` + lessons.map(l=>`<label class="lesson-option"><input type="checkbox" data-lesson="${escapeHtml(l)}" ${selected.has(l)?"checked":""}> ${escapeHtml(l.replace(/^DAY\s*/i,"Lesson "))}</label>`).join("");
+    const lessons = playlistLessons(p);
+    const selected = state.selectedLessons?.length === 1 ? state.selectedLessons[0] : "";
+    els.lessonCountBadge.textContent = `${p.sentences.length}개`;
+    els.lessonSelect.innerHTML = `<option value="">전체 레슨</option>` +
+      lessons.map(l => `<option value="${escapeHtml(l)}">${escapeHtml(lessonDisplay(l))}</option>`).join("");
+    els.lessonSelect.value = selected && lessons.includes(selected) ? selected : "";
+    const matching = p.sentences.filter(s => lessonLabel(s.lesson) === els.lessonSelect.value);
+    const numbers = [...new Set(matching.map(s => sentenceNumber(s)))].sort((a,b)=>a-b);
+    els.numberSelect.disabled = !els.lessonSelect.value;
+    els.numberSelect.innerHTML = `<option value="">전체 순번</option>` +
+      numbers.map(n => `<option value="${n}">${n}번</option>`).join("");
+    els.numberSelect.value = numbers.some(n => String(n) === String(state.selectedNumber)) ? String(state.selectedNumber) : "";
+    if (!els.lessonSelect.value) els.numberSelect.value = "";
   }
-
   function renderPlaylistDetail() {
     const p = currentPlaylist();
     if (!p) return;
@@ -219,7 +266,7 @@
         <div class="sentence-body" data-action="open-sentence">
           <div class="en">${escapeHtml(s.english||"")}</div>
           ${s.korean ? `<div class="kr">${escapeHtml(s.korean)}</div>`:""}
-          <div class="sentence-lesson">${escapeHtml(lessonLabel(s.lesson).replace(/^DAY\s*/i,"Lesson "))}</div>
+          <div class="sentence-lesson">${escapeHtml(lessonDisplay(s.lesson))} · ${sentenceNumber(s)}번</div>
         </div>
         <button class="state" data-action="toggle-review" aria-label="복습">${stateIcon}</button>
       </div>`;
@@ -281,17 +328,22 @@
     els.sentenceList.addEventListener("change", handleSentenceCheck);
 
     els.sortSelect.addEventListener("change",renderPlaylistDetail);
-    els.lessonPickerBtn.addEventListener("click",()=>els.lessonPickerPanel.classList.toggle("hidden"));
-    els.lessonCheckboxList.addEventListener("change",e=>{
-      const cb=e.target.closest('input[data-lesson]'); if(!cb)return;
-      const value=cb.dataset.lesson;
-      if(value==="__ALL__") { state.selectedLessons=[]; }
-      else {
-        const set=new Set(state.selectedLessons||[]);
-        if(cb.checked)set.add(value); else set.delete(value);
-        state.selectedLessons=[...set];
+    els.lessonSelect.addEventListener("change", () => {
+      state.selectedLessons = els.lessonSelect.value ? [els.lessonSelect.value] : [];
+      state.selectedNumber = "";
+      state.selectedSentenceIds = [];
+      saveState(); renderPlaylistDetail();
+    });
+    els.numberSelect.addEventListener("change", () => {
+      state.selectedNumber = els.numberSelect.value;
+      state.selectedSentenceIds = [];
+      if (state.selectedNumber && state.selectedLessons.length === 1) {
+        const found = currentPlaylist()?.sentences.find(s =>
+          lessonLabel(s.lesson) === state.selectedLessons[0] &&
+          String(sentenceNumber(s)) === String(state.selectedNumber));
+        if (found) { state.currentSentenceId = found.id; renderStudy(); }
       }
-      state.selectedSentenceIds=[]; saveState(); renderPlaylistDetail();
+      saveState(); renderPlaylistDetail();
     });
     if (els.playModeSelect) els.playModeSelect.addEventListener("change",()=>{state.playMode=els.playModeSelect.value;saveState()});
     $("#reviewOnlyBtn").addEventListener("click",()=>{state.reviewOnly=!state.reviewOnly;renderPlaylistDetail();toast(state.reviewOnly?"복습 문장만 표시합니다.":"전체 문장을 표시합니다.")});
@@ -369,7 +421,7 @@
     if (e.target.closest('[data-action="play-playlist"]')) {
       switchView("studyView"); renderStudy(); startPlaylistPractice();
     } else {
-      state.reviewOnly=false; state.selectedSentenceIds=[]; state.selectedLessons=[];
+      state.reviewOnly=false; state.selectedSentenceIds=[]; state.selectedLessons=[]; state.selectedNumber="";
       els.playlistDetail.classList.remove("hidden"); renderPlaylistDetail(); renderStudy();
     }
   }
@@ -421,9 +473,10 @@
     if(!name){toast("플레이리스트 제목을 입력해 주세요.");return;}
     let p=state.playlists.find(x=>x.name===name);
     if(!p){ p={id:uid(),name,description:"",sentences:[]}; state.playlists.push(p); }
-    state.currentPlaylistId=p.id; state.currentSentenceId=null; state.selectedLessons=[];
+    state.currentPlaylistId=p.id; state.currentSentenceId=null; state.selectedLessons=[]; state.selectedNumber="";
     if(file) {
       importFileToPlaylist(file,p).then(()=>{
+        normalizeSentenceNumbers(state);
         state.currentSentenceId=p.sentences[0]?.id||null; saveState(); renderAll();
         els.playlistDialog.close(); $("#playlistForm").reset();
         toast(`"${name}"에 ${p.sentences.length}개 문장을 가져왔습니다.`);
@@ -445,7 +498,9 @@
       p.sentences=rows.slice(1).filter(r=>r.some(Boolean)).map((r,i)=>{
         const v=(name)=>r[headers.indexOf(name)]??"";
         return newSentence({
-          order:Number(v("ORDER"))||i+1, lesson:v("LESSON"), english:v("ENGLISH"), korean:v("KOREAN"),
+          order:Number(v("ORDER"))||i+1, lesson:v("LESSON")||v("레슨"),
+          number: Number(v("순번")||v("NUMBER")||v("SEQUENCE")||v("SEQ"))||null,
+          english:v("ENGLISH"), korean:v("KOREAN"), description:v("DESCRIPTION")||v("설명"),
           grammar:v("GRAMMAR"), structure:v("STRUCTURE"),
           words:[
             {word:v("WORD_1"),meaning:v("WORD_1_MEANING"),pronunciation:v("WORD_1_PRONUNCIATION"),pos:v("WORD_1_POS")},
@@ -477,7 +532,8 @@
 
   function newSentence(data={}) {
     return {
-      id:uid(),order:data.order||1,lesson:data.lesson||"",english:data.english||"",korean:data.korean||"",
+      id:uid(),order:data.order||1,lesson:data.lesson||"",number:data.number||null,
+      english:data.english||"",korean:data.korean||"",description:data.description||"",
       grammar:data.grammar||"",structure:data.structure||"",words:data.words||[],memo:data.memo||"",
       review:false,completed:false,lastStudiedAt:null
     };
@@ -487,6 +543,8 @@
     $("#sentenceDialogTitle").textContent=s?"문장 수정":"문장 추가";
     $("#editingSentenceId").value=s?.id||"";
     $("#lessonInput").value=s?.lesson||"";
+    $("#numberInput").value=s?.number||"";
+    $("#descriptionInput").value=s?.description||"";
     $("#englishInput").value=s?.english||"";
     $("#koreanInput").value=s?.korean||"";
     $("#grammarInput").value=s?.grammar||"";
@@ -506,7 +564,11 @@
     const id=$("#editingSentenceId").value;
     let s=p.sentences.find(x=>x.id===id);
     if(!s){s=newSentence({order:p.sentences.length+1});p.sentences.push(s);}
-    s.lesson=$("#lessonInput").value.trim(); s.english=$("#englishInput").value.trim(); s.korean=$("#koreanInput").value.trim();
+    s.lesson=$("#lessonInput").value.trim();
+    s.number=Number($("#numberInput").value)||null;
+    s.description=$("#descriptionInput").value.trim();
+    s.english=$("#englishInput").value.trim(); s.korean=$("#koreanInput").value.trim();
+    normalizeSentenceNumbers(state);
     s.grammar=$("#grammarInput").value.trim(); s.structure=$("#structureInput").value.trim(); s.memo=$("#memoInput").value.trim();
     s.words=[
       {word:$("#word1Input").value.trim(),meaning:$("#word1MeaningInput").value.trim(),pronunciation:$("#word1PronunciationInput").value.trim(),pos:$("#word1PosInput").value.trim()},
