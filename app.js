@@ -380,7 +380,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
 
   function init() {
     const version=document.querySelector(".version-badge");
-    if(version){version.textContent="v01.022";version.setAttribute("aria-label","실행 버전 v01.022");}
+    if(version){version.textContent="v01.023";version.setAttribute("aria-label","실행 버전 v01.023");}
     state.settings.autoRecord=false;
     for (let i=1;i<=10;i++) els.delaySelect.insertAdjacentHTML("beforeend", `<option value="${i}">${i}초</option>`);
     for (let i=5;i<=10;i++) {
