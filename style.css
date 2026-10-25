@@ -340,3 +340,8 @@ dialog{border:0;border-radius:22px;padding:0;width:min(calc(100% - 28px),460px);
 
 /* 크기를 유지하고 가는 선의 시계로 변경 */
 .reference-settings .clock-icon svg{display:block;width:58px;height:58px;max-width:none;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;}
+
+/* 지연·속도 시계는 기존 58px 크기의 2/3로 표시 */
+.reference-settings .clock-icon svg{width:38.6667px;height:38.6667px;}
+
+.number-all input[type="radio"]{accent-color:#2d6985;width:16px;height:16px;margin:0;}

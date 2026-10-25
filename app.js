@@ -380,7 +380,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
 
   function init() {
     const version=document.querySelector(".version-badge");
-    if(version){version.textContent="v01.024";version.setAttribute("aria-label","실행 버전 v01.024");}
+    if(version){version.textContent="v01.026";version.setAttribute("aria-label","실행 버전 v01.026");}
     state.settings.autoRecord=false;
     for (let i=1;i<=10;i++) els.delaySelect.insertAdjacentHTML("beforeend", `<option value="${i}">${i}초</option>`);
     for (let i=5;i<=10;i++) {
@@ -582,9 +582,10 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     const matching = selected ? p.sentences.filter(s=>lessonLabel(s.lesson)===selected) : p.sentences;
     const numbers=[...new Set(matching.map(s=>sentenceNumber(s)))].sort((a,b)=>a-b);
     const chosen=getSelectedNumbers();
-    $("#numberDropdownSummary").textContent=chosen.length?chosen.map(n=>`${n}번`).join(", "):"전체";
-    els.numberPicker.innerHTML=`<button type="button" class="number-all ${chosen.length?"":"active"}" data-number-all>전체</button>`+
-      numbers.map(n=>`<label class="number-option"><input type="checkbox" data-number="${n}" ${chosen.includes(String(n))?"checked":""}>${n}번</label>`).join("");
+    const allSelected=!chosen.length||(numbers.length>0&&numbers.every(n=>chosen.includes(String(n))));
+    $("#numberDropdownSummary").textContent=allSelected?"전체":chosen.map(n=>`${n}번`).join(", ");
+    els.numberPicker.innerHTML=`<label class="number-all ${allSelected?"active":""}"><input type="radio" name="numberSelectAll" data-number-all ${allSelected?"checked":""}>전체</label>`+
+      numbers.map(n=>`<label class="number-option"><input type="checkbox" data-number="${n}" ${allSelected||chosen.includes(String(n))?"checked":""}>${n}번</label>`).join("");
   }
   function getSelectedNumbers(){
     return Array.isArray(state.selectedNumbers)&&state.selectedNumbers.length ? state.selectedNumbers.map(String) : state.selectedNumber ? [String(state.selectedNumber)] : [];
@@ -597,15 +598,14 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   }
   function bindNumberPicker(){
     const dropdown=$("#numberDropdown");
-    els.numberPicker.addEventListener("click",e=>{
-      if(e.target.closest("[data-number-all]")){
-        state.selectedNumbers=[];state.selectedNumber="";commitNumberSelection();
-      }
-    });
     els.numberPicker.addEventListener("change",e=>{
+      if(e.target.matches("[data-number-all]")){
+        state.selectedNumbers=[];state.selectedNumber="";commitNumberSelection();return;
+      }
       const input=e.target.closest("[data-number]");if(!input)return;
       const number=input.dataset.number;
-      const selected=new Set(getSelectedNumbers());
+      const chosen=getSelectedNumbers();
+      const selected=new Set(chosen.length?chosen:[...els.numberPicker.querySelectorAll("[data-number]")].map(option=>option.dataset.number));
       if(input.checked)selected.add(number);else selected.delete(number);
       state.selectedNumbers=[...selected].sort((a,b)=>Number(a)-Number(b));state.selectedNumber="";
       commitNumberSelection();
