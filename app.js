@@ -380,7 +380,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
 
   function init() {
     const version=document.querySelector(".version-badge");
-    if(version){version.textContent="v01.023";version.setAttribute("aria-label","실행 버전 v01.023");}
+    if(version){version.textContent="v01.024";version.setAttribute("aria-label","실행 버전 v01.024");}
     state.settings.autoRecord=false;
     for (let i=1;i<=10;i++) els.delaySelect.insertAdjacentHTML("beforeend", `<option value="${i}">${i}초</option>`);
     for (let i=5;i<=10;i++) {
@@ -708,10 +708,13 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
       saveState();renderPlaylistDetail();toast("문장 순서를 섞었습니다.");
     });
     els.lessonSelect.addEventListener("change", () => {
-      state.selectedLessons = els.lessonSelect.value ? [els.lessonSelect.value] : [];
+      const allLessons=els.lessonSelect.value==="";
+      state.selectedLessons = allLessons ? [] : [els.lessonSelect.value];
       state.selectedNumber = ""; state.selectedNumbers=[];
-      state.selectedSentenceIds = [];
+      if(allLessons)state.reviewOnly=false;
+      state.selectedSentenceIds = allLessons ? (currentPlaylist()?.sentences||[]).map(sentence=>sentence.id) : [];
       saveState(); renderPlaylistDetail();
+      if(allLessons)toast(`전체 레슨 ${state.selectedSentenceIds.length}개 문장을 선택했습니다.`);
     });
     bindNumberPicker();
     document.querySelectorAll(".icon-select select").forEach(select=>select.addEventListener("change",syncControlValues));
