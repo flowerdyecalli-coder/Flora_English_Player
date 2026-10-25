@@ -192,6 +192,8 @@
 
     if (!p || !s) {
       els.sentenceCounter.textContent = "0 / 0";
+      els.englishText.classList.remove("hidden");
+      els.koreanText.classList.add("hidden");
       els.englishText.textContent = "플레이리스트에서 문장을 추가해 주세요.";
       els.koreanText.textContent = "";
       els.descriptionText.textContent = "";
@@ -210,8 +212,9 @@
     els.favoriteBtn.textContent = s.review ? "★" : "☆";
     els.favoriteBtn.classList.toggle("active", !!s.review);
 
-    els.englishText.classList.remove("hidden");
-    els.koreanText.classList.toggle("hidden", !s.korean);
+    const language=els.languageSelect.value||state.settings.language;
+    els.englishText.classList.toggle("hidden",language==="KR");
+    els.koreanText.classList.toggle("hidden",language==="EN"||!s.korean);
   }
 
   function renderPlaylists() {
@@ -323,8 +326,8 @@
     bindSwipeNavigation();
     window.addEventListener("resize",()=>requestAnimationFrame(fitLandscapeSentences));
     document.fonts?.ready.then(()=>requestAnimationFrame(fitLandscapeSentences));
-    document.addEventListener("visibilitychange",()=>{if(document.hidden)stopEverything();});
-    window.addEventListener("pagehide",stopEverything);
+    // Keep playback running when the page is hidden or another app is opened.
+    // The user can stop playback with the stop button.
     els.navBtns.forEach(btn=>btn.addEventListener("click",()=>switchView(btn.dataset.view)));
     $("#settingsBtn").addEventListener("click",()=>els.settingsDialog.showModal());
     $("#addPlaylistBtn").addEventListener("click",()=>els.playlistDialog.showModal());
@@ -352,6 +355,7 @@
         saveState(); renderPlaylists();
       });
     });
+    els.languageSelect.addEventListener("change",renderStudy);
     els.autoRecordToggle.addEventListener("change",()=>{state.settings.autoRecord=els.autoRecordToggle.checked;saveState()});
     $("#autoNextToggle").addEventListener("change",()=>{state.settings.autoNext=$("#autoNextToggle").checked;$("#advanceSelect").value=state.settings.autoNext?"next":"once";syncControlValues();saveState()});
 
@@ -743,7 +747,7 @@
     while(count<repeat && !session.stopRequested) {
       count++;
       check();
-      const lang=state.settings.language;
+      const lang=els.languageSelect.value||state.settings.language;
       if(lang==="EN") await speakText(s.english,"en-US");
       if(lang==="KR") await speakText(s.korean,"ko-KR");
       if(lang==="EN_KR"){ await speakText(s.english,"en-US"); check(); if(s.korean) await speakText(s.korean,"ko-KR"); }
@@ -751,7 +755,10 @@
         if(s.korean){
           await speakText(s.korean,"ko-KR");
           check();
-          await countdown(Number(state.settings.delay));
+          const selectedDelay=Number(els.delaySelect.value);
+          const savedDelay=Number(state.settings.delay);
+          const seconds=Number.isFinite(selectedDelay)&&selectedDelay>0?selectedDelay:Number.isFinite(savedDelay)&&savedDelay>0?savedDelay:5;
+          await countdown(seconds,"영어 대기");
           check();
         }
         await speakText(s.english,"en-US");
@@ -764,9 +771,6 @@
         await startRecording(duration==="manual"?null:Number(duration)*1000, s);
       }
 
-      if(count<repeat || repeat===Infinity) {
-        await countdown(Number(state.settings.delay));
-      }
     }
     check();
     s.completed=true; s.lastStudiedAt=Date.now(); saveState(); renderAll();
@@ -892,14 +896,14 @@
     els.countdownArea.classList.add("hidden"); setStatus("정지");
   }
 
-  function countdown(seconds) {
+  function countdown(seconds,label="지연") {
     return new Promise((resolve,reject)=>{
       let remaining=Math.max(0,Number(seconds))*1000,last=Date.now(),timer,finished=false;
       const finish=(err)=>{if(finished)return;finished=true;clearInterval(timer);playbackCancellations.delete(cancel);els.countdownArea.classList.add("hidden");if(err)reject(err);else resolve();};
       const cancel=()=>finish(new Error("STOP"));
       playbackCancellations.add(cancel);
-      els.countdownArea.classList.remove("hidden");els.countdownLabel.textContent="지연";
-      els.countdownNumber.textContent=`${Math.ceil(remaining/1000)}초`;setStatus("지연 중");
+      els.countdownArea.classList.remove("hidden");els.countdownLabel.textContent=label;
+      els.countdownNumber.textContent=`${Math.ceil(remaining/1000)}초`;setStatus(`${label} 중`);
       timer=setInterval(()=>{
         const now=Date.now();
         if(session.stopRequested){cancel();return;}
