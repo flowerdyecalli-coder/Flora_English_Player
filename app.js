@@ -371,7 +371,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     playlistCards: $("#playlistCards"), playlistDetail: $("#playlistDetail"), detailPlaylistName: $("#detailPlaylistName"),
     detailTotal: $("#detailTotal"), sentenceList: $("#sentenceList"), sortSelect: $("#sortSelect"), playModeSelect: $("#playModeSelect"),
     lessonCountBadge: $("#lessonCountBadge"), lessonSelect: $("#lessonSelect"), numberPicker: $("#numberPicker"),
-    selectedCount: $("#selectedCount"), recordingList: $("#recordingList"), recordingCount: $("#recordingCount"), recordingSize: $("#recordingSize"),
+    selectedCount: $("#selectedCount"), recordingList: $("#recordingList"), recordingCount: $("#recordingCount"),
     recordingSelectionBar: $("#recordingSelectionBar"), recordingSelectedCount: $("#recordingSelectedCount"),
     playlistDialog: $("#playlistDialog"), sentenceDialog: $("#sentenceDialog"), settingsDialog: $("#settingsDialog"), toast: $("#toast")
   };
@@ -380,7 +380,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
 
   function init() {
     const version=document.querySelector(".version-badge");
-    if(version){version.textContent="v01.016";version.setAttribute("aria-label","실행 버전 v01.016");}
+    if(version){version.textContent="v01.020";version.setAttribute("aria-label","실행 버전 v01.020");}
     state.settings.autoRecord=false;
     for (let i=1;i<=10;i++) els.delaySelect.insertAdjacentHTML("beforeend", `<option value="${i}">${i}초</option>`);
     for (let i=5;i<=10;i++) {
@@ -734,6 +734,10 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     $("#deleteSentenceBtn").addEventListener("click",()=>deleteSentenceById($("#editingSentenceId").value));
 
     $("#chooseFolderBtn").addEventListener("click", chooseSaveFolder);
+    $("#recordingsSelectAll").addEventListener("change",e=>{
+      els.recordingList.querySelectorAll(".recording-check").forEach(input=>{input.checked=e.target.checked;});
+      renderRecordingSelectionBar();
+    });
     els.recordingList.addEventListener("change", renderRecordingSelectionBar);
     els.recordingList.addEventListener("click", handleRecordingActions);
     $("#mergeBtn").addEventListener("click", mergeSelectedRecordings);
@@ -1113,7 +1117,13 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
       const lang=els.languageSelect.value||state.settings.language;
       if(lang==="EN") await speakText(s.english,"en-US");
       if(lang==="KR") await speakText(s.korean,"ko-KR");
-      if(lang==="EN_KR"){ await speakText(s.english,"en-US"); check(); if(s.korean) await speakText(s.korean,"ko-KR"); }
+      if(lang==="EN_KR"){
+        await speakText(s.english,"en-US");check();
+        if(s.korean){
+          if(s.english){await waitForDelay("영어 → 한글 대기");check();}
+          await speakText(s.korean,"ko-KR");
+        }
+      }
       if(lang==="KR_EN"){
         if(s.korean){
           await speakText(s.korean,"ko-KR");
@@ -1498,7 +1508,6 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   async function renderRecordings() {
     const list=(await getAllRecordings()).sort((a,b)=>b.createdAt-a.createdAt);
     els.recordingCount.textContent=list.length;
-    els.recordingSize.textContent=formatBytes(list.reduce((sum,r)=>sum+(r.blob?.size||0),0));
     els.recordingList.querySelectorAll("audio").forEach(audio=>audio.pause());
     recordingObjectUrls.forEach(url=>URL.revokeObjectURL(url));recordingObjectUrls=[];
     els.recordingList.innerHTML=list.length ? list.map(r=>{
@@ -1525,6 +1534,9 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   function selectedRecordingIds(){return $$(".recording-check:checked").map(x=>x.closest(".recording-card").dataset.recordingId)}
   function renderRecordingSelectionBar(){
     const n=selectedRecordingIds().length;
+    const total=els.recordingList.querySelectorAll(".recording-check").length;
+    const all=$("#recordingsSelectAll");
+    all.checked=total>0&&n===total;all.indeterminate=n>0&&n<total;all.disabled=total===0;
     els.recordingSelectionBar.classList.toggle("hidden",!n); els.recordingSelectedCount.textContent=`${n}개 선택됨`;
   }
   async function handleRecordingActions(e){
