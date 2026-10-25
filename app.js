@@ -285,7 +285,8 @@
   }
 
   function bindEvents() {
-    ["touchstart","pointerdown","click"].forEach(type=>document.addEventListener(type,prepareSpeech,{once:true,passive:true}));
+    document.addEventListener("visibilitychange",()=>{if(document.hidden)stopEverything();});
+    window.addEventListener("pagehide",stopEverything);
     els.navBtns.forEach(btn=>btn.addEventListener("click",()=>switchView(btn.dataset.view)));
     $("#settingsBtn").addEventListener("click",()=>els.settingsDialog.showModal());
     $("#addPlaylistBtn").addEventListener("click",()=>els.playlistDialog.showModal());
@@ -369,6 +370,7 @@
   }
 
   function switchView(viewId) {
+    stopEverything();
     els.views.forEach(v=>v.classList.toggle("active",v.id===viewId));
     els.navBtns.forEach(b=>b.classList.toggle("active",b.dataset.view===viewId));
     if (viewId==="recordingsView") renderRecordings();
@@ -413,6 +415,7 @@
       return;
     }
 
+    stopEverything();
     state.currentPlaylistId=p.id;
     state.currentSentenceId=p.sentences[0]?.id||null;
     state.currentIndex=0;
@@ -433,7 +436,8 @@
 
     if (e.target.closest('[data-action="toggle-review"]')) { toggleReview(id); return; }
     if (e.target.closest('[data-action="play-one"]')) {
-      const s=currentPlaylist()?.sentences.find(x=>x.id===id); if(s) speakText(s.english,"en-US");
+      const s=currentPlaylist()?.sentences.find(x=>x.id===id);
+      if(s){stopEverything();session.stopRequested=false;speakText(s.english,"en-US").catch(err=>{if(err.message!=="STOP")console.error(err);});}
       return;
     }
     if (e.target.closest('[data-action="open-sentence"]')) {
@@ -588,22 +592,26 @@
     const s=currentSentence(); if(!s)return;
     session.stopRequested=false; session.paused=false; session.playing=true;
     session.currentPlayQueue=queue;
-    try { await practiceSentence(s); }
+    const runId=++playbackGeneration;
+    try { await practiceSentence(s,runId); }
     catch(err){ if(err?.message!=="STOP") console.error(err); }
-    finally { session.playing=false; setStatus("준비"); session.currentPlayQueue=null; }
+    finally { if(runId===playbackGeneration){session.playing=false; setStatus("준비"); session.currentPlayQueue=null;} }
   }
 
-  async function practiceSentence(s) {
+  async function practiceSentence(s,runId=playbackGeneration) {
+    const check=()=>{if(session.stopRequested||runId!==playbackGeneration)throw new Error("STOP");};
+    check();
     const repeat = state.settings.repeat==="infinite" ? Infinity : Number(state.settings.repeat);
     let count=0;
     while(count<repeat && !session.stopRequested) {
       count++;
+      check();
       const lang=state.settings.language;
       if(lang==="EN") await speakText(s.english,"en-US");
       if(lang==="KR") await speakText(s.korean,"ko-KR");
-      if(lang==="EN_KR"){ await speakText(s.english,"en-US"); if(s.korean) await speakText(s.korean,"ko-KR"); }
-      if(lang==="KR_EN"){ if(s.korean) await speakText(s.korean,"ko-KR"); await speakText(s.english,"en-US"); }
-      if(session.stopRequested) throw new Error("STOP");
+      if(lang==="EN_KR"){ await speakText(s.english,"en-US"); check(); if(s.korean) await speakText(s.korean,"ko-KR"); }
+      if(lang==="KR_EN"){ if(s.korean) await speakText(s.korean,"ko-KR"); check(); await speakText(s.english,"en-US"); }
+      check();
 
       if(state.settings.autoRecord) {
         setStatus("🎤 녹음 중");
@@ -615,6 +623,7 @@
         await countdown(Number(state.settings.delay));
       }
     }
+    check();
     s.completed=true; s.lastStudiedAt=Date.now(); saveState(); renderAll();
 
     if(state.settings.autoNext && repeat!==Infinity && !session.stopRequested && !session.currentPlayQueue) {
@@ -626,6 +635,7 @@
     const p=currentPlaylist(); if(!p?.sentences.length)return;
     let list=sortedSentences(p); if(state.reviewOnly)list=list.filter(s=>s.review);
     if(els.sortSelect?.value==="shuffle") list=shuffle([...list]);
+    switchView("studyView");
     await runQueue(list);
   }
 
@@ -640,24 +650,26 @@
   async function runQueue(list) {
     if(session.playing)return;
     session.playing=true; session.stopRequested=false; session.currentPlayQueue=list;
+    const runId=++playbackGeneration;
     try {
       for(const s of list) {
-        if(session.stopRequested)break;
+        if(session.stopRequested||runId!==playbackGeneration)break;
         state.currentSentenceId=s.id; saveState(); renderStudy();
-        await practiceSentence(s);
+        await practiceSentence(s,runId);
       }
     } catch(err){if(err?.message!=="STOP")console.error(err)}
-    finally{session.playing=false;session.currentPlayQueue=null;setStatus("준비")}
+    finally{if(runId===playbackGeneration){session.playing=false;session.currentPlayQueue=null;setStatus("준비")}}
   }
 
   function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 
   let speechReady=false;
+  let playbackGeneration=0;
+  const playbackCancellations=new Set();
 
   function prepareSpeech() {
     if(!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) return false;
     try {
-      speechSynthesis.resume();
       speechSynthesis.getVoices();
       speechReady=true;
       return true;
@@ -683,10 +695,14 @@
       }
 
       let finished=false;
+      let watchdog, launchTimer;
+      const cancel=()=>finish(new Error("STOP"));
       const finish=(err=null)=>{
-        if(finished)return; finished=true; clearTimeout(watchdog);
+        if(finished)return; finished=true; clearTimeout(watchdog); clearTimeout(launchTimer);
+        playbackCancellations.delete(cancel);
         if(err) reject(err); else resolve();
       };
+      playbackCancellations.add(cancel);
       const u=new SpeechSynthesisUtterance(text);
       u.lang=lang; u.rate=Number(state.settings.speed)||0.8;
       const voice=chooseVoice(lang); if(voice)u.voice=voice;
@@ -696,14 +712,15 @@
 
       // 모바일 Chrome/Safari에서 cancel 직후 speak가 먹히지 않는 현상을 줄입니다.
       try { speechSynthesis.cancel(); speechSynthesis.resume(); } catch {}
-      setTimeout(()=>{
+      launchTimer=setTimeout(()=>{
+        if(finished)return;
         if(session.stopRequested){finish(new Error("STOP"));return;}
         try { speechSynthesis.speak(u); } catch(e) { console.warn(e); finish(); }
       },90);
 
       // 일부 모바일에서 onend가 오지 않아 전체 재생이 멈추는 것을 방지합니다.
       const estimated=Math.max(4000, Math.min(30000, text.length*180/(Number(state.settings.speed)||0.8)));
-      const watchdog=setTimeout(()=>{
+      watchdog=setTimeout(()=>{
         try{speechSynthesis.cancel();}catch{}
         finish();
       },estimated);
@@ -717,8 +734,11 @@
   }
 
   function stopEverything() {
-    session.stopRequested=true; session.playing=false; session.currentPlayQueue=null;
-    speechSynthesis.cancel();
+    playbackGeneration++;
+    session.stopRequested=true; session.paused=false; session.playing=false; session.currentPlayQueue=null;
+    for(const cancel of [...playbackCancellations])cancel();
+    try{window.speechSynthesis?.cancel();}catch{}
+    document.querySelectorAll("audio").forEach(audio=>audio.pause());
     if(session.timer){clearTimeout(session.timer);session.timer=null;}
     if(session.mediaRecorder?.state==="recording") session.mediaRecorder.stop();
     els.countdownArea.classList.add("hidden"); setStatus("정지");
@@ -726,11 +746,13 @@
 
   function countdown(seconds) {
     return new Promise((resolve,reject)=>{
+      const cancel=()=>{clearTimeout(session.timer);playbackCancellations.delete(cancel);reject(new Error("STOP"));};
+      playbackCancellations.add(cancel);
       els.countdownArea.classList.remove("hidden"); els.countdownLabel.textContent="따라 말해보세요."; setStatus("⏱ 따라 말하기");
       let left=seconds; els.countdownNumber.textContent=left;
       const tick=()=>{
-        if(session.stopRequested){els.countdownArea.classList.add("hidden");reject(new Error("STOP"));return;}
-        if(left<=0){els.countdownArea.classList.add("hidden");resolve();return;}
+        if(session.stopRequested){els.countdownArea.classList.add("hidden");cancel();return;}
+        if(left<=0){playbackCancellations.delete(cancel);els.countdownArea.classList.add("hidden");resolve();return;}
         els.countdownNumber.textContent=left--;
         session.timer=setTimeout(tick,1000);
       }; tick();
