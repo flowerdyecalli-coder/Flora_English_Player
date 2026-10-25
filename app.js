@@ -203,7 +203,7 @@
     els.englishText.textContent = s.english || "";
     els.koreanText.textContent = s.korean || "";
     els.descriptionText.textContent = s.description || "";
-    els.descriptionArea.classList.toggle("hidden", !s.description);
+    els.descriptionArea.classList.toggle("hidden", !s.description || state.settings.showInfo===false);
     els.favoriteBtn.textContent = s.review ? "★" : "☆";
     els.favoriteBtn.classList.toggle("active", !!s.review);
 
@@ -275,6 +275,8 @@
   }
 
   function hydrateSettings() {
+    $("#advanceSelect").value=state.settings.autoNext?"next":"once";
+    syncInfoButton();
     els.repeatSelect.value = state.settings.repeat;
     els.delaySelect.value = state.settings.delay;
     els.speedSelect.value = state.settings.speed;
@@ -298,8 +300,9 @@
     els.favoriteBtn.addEventListener("click",()=>toggleReview(currentSentence()?.id));
     $("#prevBtn").addEventListener("click",()=>moveSentence(-1));
     $("#nextBtn").addEventListener("click",()=>moveSentence(1));
-    $("#playBtn").addEventListener("click",()=>startPractice());
-    $("#pauseBtn").addEventListener("click",togglePause);
+    $("#playBtn").addEventListener("click",()=>{if(session.playing||session.pauseSpeech)togglePause();else startPractice();});
+    $("#advanceSelect").addEventListener("change",()=>{state.settings.autoNext=$("#advanceSelect").value==="next";$("#autoNextToggle").checked=state.settings.autoNext;saveState();});
+    $("#infoBtn").addEventListener("click",()=>{state.settings.showInfo=state.settings.showInfo===false;saveState();renderStudy();syncInfoButton();});
     $("#stopBtn").addEventListener("click",stopEverything);
     $("#recordBtn").addEventListener("click",toggleManualRecording);
 
@@ -314,7 +317,7 @@
       });
     });
     els.autoRecordToggle.addEventListener("change",()=>{state.settings.autoRecord=els.autoRecordToggle.checked;saveState()});
-    $("#autoNextToggle").addEventListener("change",()=>{state.settings.autoNext=$("#autoNextToggle").checked;saveState()});
+    $("#autoNextToggle").addEventListener("change",()=>{state.settings.autoNext=$("#autoNextToggle").checked;$("#advanceSelect").value=state.settings.autoNext?"next":"once";saveState()});
 
     els.playlistCards.addEventListener("click", handlePlaylistCardClick);
     els.playlistCards.addEventListener("change", e=>{
@@ -742,7 +745,7 @@
   function togglePause() {
     if(!session.playing&&!session.pauseSpeech)return;
     session.paused=!session.paused;
-    const button=$("#pauseBtn");
+    const button=$("#playBtn");
     if(button){button.textContent=session.paused?"▶":"Ⅱ";button.setAttribute("aria-label",session.paused?"재개":"일시정지");}
     if(session.paused){session.pauseSpeech?.();setStatus("Ⅱ 일시정지");}
     else{session.resumeSpeech?.();setStatus(session.pauseSpeech?"🎧 재생 중":"지연 중");}
@@ -756,7 +759,7 @@
     document.querySelectorAll("audio").forEach(audio=>audio.pause());
     if(session.timer){clearTimeout(session.timer);session.timer=null;}
     if(session.mediaRecorder?.state==="recording") session.mediaRecorder.stop();
-    const pauseButton=$("#pauseBtn");if(pauseButton){pauseButton.textContent="Ⅱ";pauseButton.setAttribute("aria-label","일시정지");}
+    const pauseButton=$("#playBtn");if(pauseButton){pauseButton.textContent="▶";pauseButton.setAttribute("aria-label","재생");}
     els.countdownArea.classList.add("hidden"); setStatus("정지");
   }
 
@@ -779,11 +782,39 @@
     });
   }
 
-  function setStatus(text){els.playStatus.textContent=text}
+  function syncInfoButton(){
+    const shown=state.settings.showInfo!==false;
+    $("#infoBtn").setAttribute("aria-pressed",String(shown));
+    $("#infoBtn .setting-value").textContent=shown?"전체":"숨김";
+  }
+  function setStatus(text){
+    els.playStatus.textContent=text;
+    const button=$("#playBtn");
+    const running=(session.playing||!!session.pauseSpeech)&&!session.paused;
+    button.textContent=running?"Ⅱ":"▶";button.setAttribute("aria-label",running?"일시정지":"재생");
+  }
+
+  let recordButtonTimer=null;
+  function setRecordButton(mode) {
+    clearTimeout(recordButtonTimer);
+    const button=els.recordBtn;
+    button.classList.toggle("active",mode==="recording");
+    button.classList.toggle("record-label",mode!=="idle");
+    button.textContent=mode==="recording"?"녹음 중":mode==="complete"?"녹음 완료":mode==="saving"?"저장 중":"●";
+    button.setAttribute("aria-label",mode==="recording"?"녹음 중, 누르면 종료":mode==="complete"?"녹음 완료":"녹음");
+    button.setAttribute("aria-pressed",String(mode==="recording"));
+    if(mode==="complete")recordButtonTimer=setTimeout(()=>setRecordButton("idle"),1200);
+  }
 
   async function toggleManualRecording() {
-    if(session.mediaRecorder?.state==="recording"){session.mediaRecorder.stop();return;}
-    await startRecording(null,currentSentence());
+    if(session.recordingStarting||session.recordingSaving)return;
+    if(session.mediaRecorder?.state==="recording"){
+      session.recordingSaving=true;setRecordButton("saving");session.mediaRecorder.stop();return;
+    }
+    session.recordingStarting=true;
+    try{await startRecording(null,currentSentence());}
+    catch(err){console.error(err);setRecordButton("idle");setStatus("녹음을 시작하지 못했습니다.");toast("마이크 권한과 연결 상태를 확인해 주세요.");}
+    finally{session.recordingStarting=false;}
   }
 
   async function startRecording(durationMs=null,sentence=null) {
@@ -803,15 +834,21 @@
         const blob=new Blob(session.chunks,{type:rec.mimeType||"audio/webm"});
         stream.getTracks().forEach(t=>t.stop());
         const elapsed=Math.max(0,(Date.now()-session.recordingStartedAt)/1000);
+        session.recordingSaving=true;
+        setRecordButton("saving");
+        try {
         await addRecording({
           id:uid(),blob,mimeType:blob.type,createdAt:Date.now(),duration:elapsed,
           sentenceId:sentence?.id||null,english:sentence?.english||"직접 녹음",
           name:`sentence_${String((state.currentIndex||0)+1).padStart(3,"0")}_${dateStamp()}.${extensionFor(blob.type)}`
         });
-        els.recordBtn.classList.remove("active"); setStatus("✓ 녹음 완료"); await renderRecordings(); resolve();
+        setRecordButton("complete");setStatus("✓ 녹음 완료");
+        } catch(err){console.error(err);setRecordButton("idle");setStatus("녹음 저장 실패");toast("녹음을 저장하지 못했습니다.");}
+        finally{session.recordingSaving=false;session.mediaRecorder=null;session.mediaStream=null;resolve();}
+        renderRecordings().catch(console.error);
       };
     });
-    session.recordingStartedAt=Date.now(); rec.start(); els.recordBtn.classList.add("active"); setStatus("🎤 녹음 중");
+    session.recordingStartedAt=Date.now(); rec.start(); setRecordButton("recording"); setStatus("🎤 녹음 중");
     if(durationMs){
       await sleep(durationMs);
       if(rec.state==="recording")rec.stop();

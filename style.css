@@ -102,3 +102,26 @@ dialog{border:0;border-radius:22px;padding:0;width:min(calc(100% - 28px),460px);
 /* Small delay text directly below the playback controls. */
 .player-card .countdown{padding:0;margin:-4px 0 10px;text-align:center;font-size:11px;line-height:1.4;color:var(--muted)}
 .player-card .countdown #countdownNumber{display:inline;font-size:11px;font-weight:400;margin:0 0 0 3px}
+
+/* Recording button stays the same size in every state. */
+.round-btn.record{color:#d51b1b;border-color:#efb4b4;background:#fff5f5}
+.round-btn.record.record-label{font-size:10px;font-weight:700;line-height:1.2;padding:2px;white-space:normal}
+.round-btn.record.active{color:#fff;background:#d51b1b;border-color:#d51b1b}
+
+/* Reference playback layout. */
+.player-card{--control-blue:#2d6985;background:#f8f9fe;border-radius:28px;padding:16px 14px}
+.speed-row{text-align:center;margin:0 0 14px;color:var(--control-blue);font-weight:700;font-size:13px}
+.speed-row select{border:0;background:transparent;color:inherit;font-weight:700;padding:6px 0;font-size:13px}
+.player-card .transport{display:grid;grid-template-columns:repeat(4,1fr);align-items:center;justify-items:center;gap:8px;margin:8px 0 14px}
+.player-card .round-btn{border:0;background:transparent;color:var(--control-blue);font-size:26px;width:48px;height:48px;padding:0}
+.player-card .round-btn.primary{width:62px;height:62px;background:var(--control-blue);color:#fff;font-size:27px}
+.player-card .round-btn.record{color:#d51b1b;background:#fff0f0;border:1px solid #efb4b4;font-size:25px}
+.player-card .round-btn.record.record-label{font-size:10px;line-height:1.2;padding:2px;font-weight:700}
+.player-card .round-btn.record.active{background:#d51b1b;color:#fff;border-color:#d51b1b}
+.player-card .reference-settings{grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;margin-top:20px}
+.reference-settings .setting-control{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:7px;min-width:0;padding:0;border:0;background:transparent;color:#555;font-size:11px;text-align:center;cursor:pointer;font-weight:400}
+.reference-settings select,.reference-settings .setting-value{width:100%;height:25px;line-height:25px;margin:0;padding:0;border:0;border-radius:0;appearance:none;background:transparent;color:var(--control-blue);font-weight:700;font-size:12px;text-align:center;text-align-last:center}
+.reference-settings .setting-icon{display:flex;align-items:center;justify-content:center;height:35px;font-size:30px;line-height:1;color:var(--control-blue);font-weight:700}
+.reference-settings select:focus-visible,.reference-settings button:focus-visible{outline:2px solid var(--control-blue);outline-offset:3px;border-radius:5px}
+.player-card .countdown{margin:0 0 8px}
+@media(max-width:390px){.player-card{padding:12px}.player-card .round-btn.primary{width:56px;height:56px}.reference-settings .setting-icon{font-size:27px}}

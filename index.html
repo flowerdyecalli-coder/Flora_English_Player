@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#ffffff" />
   <title>FLORA English Player</title>
-  <link rel="stylesheet" href="style.css?v=20261025-pause" />
+  <link rel="stylesheet" href="style.css?v=20261025-layout" />
 </head>
 <body>
   <div id="appShell" class="app-shell">
@@ -44,42 +44,22 @@
             <span id="timerText">00:00</span>
           </div>
 
+          <div class="speed-row"><label>◴ 속도 <select id="speedSelect" aria-label="재생 속도"></select></label></div>
           <div class="transport">
-            <button id="prevBtn" class="round-btn" aria-label="이전">◀</button>
+            <button id="prevBtn" class="round-btn" aria-label="이전 문장">▏◀</button>
             <button id="recordBtn" class="round-btn record" aria-label="녹음">●</button>
             <button id="playBtn" class="round-btn primary" aria-label="재생">▶</button>
-            <button id="pauseBtn" class="round-btn" aria-label="일시정지">Ⅱ</button>
-            <button id="nextBtn" class="round-btn" aria-label="다음">▶|</button>
+            <button id="nextBtn" class="round-btn" aria-label="다음 문장">▶▕</button>
           </div>
-
-          <div id="countdownArea" class="countdown hidden" role="status">
-            <span id="countdownLabel">지연</span>
-            <span id="countdownNumber">5초</span>
-          </div>
-
-          <div class="quick-settings">
-            <label>반복
-              <select id="repeatSelect">
-                <option value="1">1회</option><option value="2">2회</option><option value="3" selected>3회</option>
-                <option value="4">4회</option><option value="5">5회</option><option value="6">6회</option>
-                <option value="7">7회</option><option value="8">8회</option><option value="9">9회</option>
-                <option value="10">10회</option><option value="infinite">무한</option>
-              </select>
-            </label>
-            <label>지연
-              <select id="delaySelect"></select>
-            </label>
-            <label>속도
-              <select id="speedSelect"></select>
-            </label>
-            <label>언어
-              <select id="languageSelect">
-                <option value="EN">EN</option>
-                <option value="KR">KR</option>
-                <option value="EN_KR" selected>EN→KR</option>
-                <option value="KR_EN">KR→EN</option>
-              </select>
-            </label>
+          <div id="countdownArea" class="countdown hidden" role="status"><span id="countdownLabel">지연</span> <span id="countdownNumber">5초</span></div>
+          <div class="quick-settings reference-settings">
+            <label class="setting-control"><select id="repeatSelect" aria-label="문장 재생 횟수">
+              <option value="1">1회</option><option value="2">2회</option><option value="3" selected>3회</option><option value="4">4회</option><option value="5">5회</option><option value="6">6회</option><option value="7">7회</option><option value="8">8회</option><option value="9">9회</option><option value="10">10회</option><option value="infinite">무한</option>
+            </select><span class="setting-icon" aria-hidden="true">↶</span><span>횟수</span></label>
+            <label class="setting-control"><select id="delaySelect" aria-label="지연 시간"></select><span class="setting-icon" aria-hidden="true">◴</span><span>지연</span></label>
+            <label class="setting-control"><select id="advanceSelect" aria-label="반복 후 진행"><option value="next">연속</option><option value="once">1문장</option></select><span class="setting-icon" aria-hidden="true">⇄</span><span>반복</span></label>
+            <button id="infoBtn" class="setting-control" type="button" aria-label="설명 표시 전환" aria-pressed="true"><span class="setting-value">전체</span><span class="setting-icon" aria-hidden="true">ⓘ</span><span>정보</span></button>
+            <label class="setting-control"><select id="languageSelect" aria-label="재생 언어"><option value="EN">영</option><option value="KR">한</option><option value="EN_KR" selected>영→한</option><option value="KR_EN">한→영</option></select><span class="setting-icon" aria-hidden="true">文A</span><span>언어</span></label>
           </div>
 
           <div class="player-actions">
@@ -245,6 +225,6 @@
   </dialog>
 
   <div id="toast" class="toast" aria-live="polite"></div>
-  <script src="app.js?v=20261025-pause"></script>
+  <script src="app.js?v=20261025-layout"></script>
 </body>
 </html>
