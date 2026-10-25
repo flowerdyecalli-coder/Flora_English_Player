@@ -298,7 +298,11 @@
           ${s.korean ? `<div class="kr">${escapeHtml(s.korean)}</div>`:""}
           <div class="sentence-lesson">${escapeHtml(lessonDisplay(s.lesson))} · ${sentenceNumber(s)}번</div>
         </div>
-        <button class="state" data-action="toggle-review" aria-label="복습">${stateIcon}</button>
+        <div class="sentence-row-actions">
+          <button class="state" data-action="toggle-review" aria-label="복습">${stateIcon}</button>
+          <button class="sentence-edit-btn" data-action="edit-sentence" aria-label="문장 수정">수정</button>
+          <button class="sentence-delete-btn" data-action="delete-sentence" aria-label="문장 삭제">삭제</button>
+        </div>
       </div>`;
     }).join("") : `<p class="muted">선택한 레슨에 문장이 없습니다.</p>`;
     els.selectedCount.textContent = `${state.selectedSentenceIds.length}개 선택`;
@@ -318,6 +322,7 @@
   }
 
   function bindEvents() {
+    bindSwipeNavigation();
     document.addEventListener("visibilitychange",()=>{if(document.hidden)stopEverything();});
     window.addEventListener("pagehide",stopEverything);
     els.navBtns.forEach(btn=>btn.addEventListener("click",()=>switchView(btn.dataset.view)));
@@ -377,7 +382,9 @@
     $("#practiceSelectedBtn").addEventListener("click",()=>startSelectedPractice());
 
     $("#createPlaylistSubmit").addEventListener("click", createPlaylistFromDialog);
-    $("#saveSentenceBtn").addEventListener("click", saveSentenceFromDialog);
+    $("#sentenceForm").addEventListener("submit",saveSentenceFromDialog);
+    $("#cancelSentenceBtn").addEventListener("click",()=>els.sentenceDialog.close());
+    $("#deleteSentenceBtn").addEventListener("click",()=>deleteSentenceById($("#editingSentenceId").value));
 
     $("#chooseFolderBtn").addEventListener("click", chooseSaveFolder);
     els.recordingList.addEventListener("change", renderRecordingSelectionBar);
@@ -394,8 +401,49 @@
     });
   }
 
+  function swipeDestination(viewId,dx,dy){
+    if(Math.abs(dx)<65||Math.abs(dx)<Math.abs(dy)*1.6)return null;
+    if(viewId==="studyView"&&dx<0)return "playlistView";
+    if(viewId==="playlistView"&&dx>0)return "studyView";
+    return null;
+  }
+  function bindSwipeNavigation(){
+    const shell=$("#appShell");let gesture=null;
+    const excluded="button,input,select,textarea,a,audio,summary,dialog,.number-picker,.lesson-toolbar,.sentence-row-actions,.bottom-action-bar";
+    shell.addEventListener("touchstart",event=>{
+      gesture=null;
+      if(event.touches.length!==1||document.querySelector("dialog[open]")||event.target.closest(excluded))return;
+      const view=event.target.closest(".view.active");
+      if(!view||!["studyView","playlistView"].includes(view.id))return;
+      const touch=event.touches[0];
+      // Leave the screen edges to the browser's own navigation gesture.
+      if(touch.clientX<24||touch.clientX>window.innerWidth-24)return;
+      gesture={x:touch.clientX,y:touch.clientY,id:touch.identifier,view:view.id,time:Date.now(),vertical:false};
+    },{passive:true});
+    shell.addEventListener("touchmove",event=>{
+      if(!gesture)return;
+      if(event.touches.length!==1){gesture=null;return;}
+      const touch=event.touches[0];
+      if(touch.identifier!==gesture.id){gesture=null;return;}
+      const dx=touch.clientX-gesture.x,dy=touch.clientY-gesture.y;
+      if(Math.abs(dy)>18&&Math.abs(dy)>Math.abs(dx)){gesture.vertical=true;return;}
+      if(!gesture.vertical&&swipeDestination(gesture.view,dx,dy)&&event.cancelable)event.preventDefault();
+    },{passive:false});
+    shell.addEventListener("touchend",event=>{
+      const start=gesture;gesture=null;
+      if(!start||start.vertical||Date.now()-start.time>1200)return;
+      const touch=[...event.changedTouches].find(t=>t.identifier===start.id);if(!touch)return;
+      const destination=swipeDestination(start.view,touch.clientX-start.x,touch.clientY-start.y);
+      if(destination&&document.querySelector(".view.active")?.id===start.view){
+        if(window.getSelection()?.toString())return;
+        switchView(destination);
+      }
+    },{passive:true});
+    shell.addEventListener("touchcancel",()=>{gesture=null;},{passive:true});
+  }
+
   function switchView(viewId) {
-    stopEverything();
+    if(viewId!=="playlistView"&&viewId!=="studyView")stopEverything();
     els.views.forEach(v=>v.classList.toggle("active",v.id===viewId));
     els.navBtns.forEach(b=>b.classList.toggle("active",b.dataset.view===viewId));
     if (viewId==="recordingsView") renderRecordings();
@@ -440,6 +488,9 @@
       return;
     }
 
+    if(session.playing&&p.id===state.currentPlaylistId&&!e.target.closest('[data-action="play-playlist"]')){
+      els.playlistDetail.classList.remove("hidden");renderPlaylistDetail();return;
+    }
     stopEverything();
     state.currentPlaylistId=p.id;
     state.currentSentenceId=p.sentences[0]?.id||null;
@@ -459,6 +510,8 @@
     if (!row) return;
     const id = row.dataset.sentenceId;
 
+    if(e.target.closest('[data-action="edit-sentence"]')){openSentenceDialog(currentPlaylist()?.sentences.find(s=>s.id===id));return;}
+    if(e.target.closest('[data-action="delete-sentence"]')){deleteSentenceById(id);return;}
     if (e.target.closest('[data-action="toggle-review"]')) { toggleReview(id); return; }
     if (e.target.closest('[data-action="play-one"]')) {
       const s=currentPlaylist()?.sentences.find(x=>x.id===id);
@@ -579,41 +632,53 @@
   }
 
   function openSentenceDialog(s=null) {
+    const p=currentPlaylist();if(!p){toast("먼저 플레이리스트를 선택해 주세요.");return;}
+    const lesson=s?.lesson||(state.selectedLessons?.length===1?lessonDisplay(state.selectedLessons[0]).replace(/^레슨\s*/,""):currentSentence()?.lesson)||"1";
+    const existing=p.sentences.filter(item=>lessonLabel(item.lesson)===lessonLabel(lesson));
+    const next=existing.reduce((max,item)=>Math.max(max,sentenceNumber(item)),0)+1;
     $("#sentenceDialogTitle").textContent=s?"문장 수정":"문장 추가";
     $("#editingSentenceId").value=s?.id||"";
-    $("#lessonInput").value=s?.lesson||"";
-    $("#numberInput").value=s?.number||"";
-    $("#descriptionInput").value=s?.description||"";
+    $("#lessonInput").value=lesson;
+    $("#numberInput").value=s?sentenceNumber(s):next;
     $("#englishInput").value=s?.english||"";
     $("#koreanInput").value=s?.korean||"";
-    $("#grammarInput").value=s?.grammar||"";
-    $("#structureInput").value=s?.structure||"";
-    const w=s?.words||[];
-    $("#word1Input").value=w[0]?.word||""; $("#word1MeaningInput").value=w[0]?.meaning||"";
-    $("#word1PronunciationInput").value=w[0]?.pronunciation||""; $("#word1PosInput").value=w[0]?.pos||"";
-    $("#word2Input").value=w[1]?.word||""; $("#word2MeaningInput").value=w[1]?.meaning||"";
-    $("#word2PronunciationInput").value=w[1]?.pronunciation||""; $("#word2PosInput").value=w[1]?.pos||"";
-    $("#memoInput").value=s?.memo||"";
+    $("#descriptionInput").value=s?.description||"";
+    $("#deleteSentenceBtn").classList.toggle("hidden",!s);
     els.sentenceDialog.showModal();
   }
 
   function saveSentenceFromDialog(e) {
     e.preventDefault();
-    const p=currentPlaylist(); if(!p){toast("먼저 플레이리스트를 만들어 주세요.");return;}
+    const form=$("#sentenceForm");if(!form.reportValidity())return;
+    const p=currentPlaylist();if(!p)return;
     const id=$("#editingSentenceId").value;
-    let s=p.sentences.find(x=>x.id===id);
-    if(!s){s=newSentence({order:p.sentences.length+1});p.sentences.push(s);}
-    s.lesson=$("#lessonInput").value.trim();
-    s.number=Number($("#numberInput").value)||null;
-    s.description=$("#descriptionInput").value.trim();
-    s.english=$("#englishInput").value.trim(); s.korean=$("#koreanInput").value.trim();
-    normalizeSentenceNumbers(state);
-    s.grammar=$("#grammarInput").value.trim(); s.structure=$("#structureInput").value.trim(); s.memo=$("#memoInput").value.trim();
-    s.words=[
-      {word:$("#word1Input").value.trim(),meaning:$("#word1MeaningInput").value.trim(),pronunciation:$("#word1PronunciationInput").value.trim(),pos:$("#word1PosInput").value.trim()},
-      {word:$("#word2Input").value.trim(),meaning:$("#word2MeaningInput").value.trim(),pronunciation:$("#word2PronunciationInput").value.trim(),pos:$("#word2PosInput").value.trim()}
-    ];
-    state.currentSentenceId=s.id; saveState(); els.sentenceDialog.close(); renderAll(); toast("문장을 저장했습니다.");
+    const lesson=$("#lessonInput").value.trim();
+    const number=Number($("#numberInput").value);
+    const english=$("#englishInput").value.trim();
+    if(!lesson||!english||!Number.isSafeInteger(number)||number<1){toast("레슨·순번·영어 문장을 확인해 주세요.");return;}
+    if(p.sentences.some(item=>item.id!==id&&lessonLabel(item.lesson)===lessonLabel(lesson)&&sentenceNumber(item)===number)){
+      toast("같은 레슨에 해당 순번이 이미 있습니다. 다른 순번을 입력해 주세요.");return;
+    }
+    let sentence=p.sentences.find(item=>item.id===id);
+    if(id&&!sentence){toast("수정할 문장을 찾지 못했습니다.");return;}
+    stopEverything();
+    if(!sentence){sentence=newSentence({order:p.sentences.length+1});p.sentences.push(sentence);}
+    Object.assign(sentence,{lesson,number,english,korean:$("#koreanInput").value.trim(),description:$("#descriptionInput").value.trim()});
+    state.currentSentenceId=sentence.id;
+    if(state.selectedLessons?.length&&!state.selectedLessons.includes(lessonLabel(lesson)))state.selectedLessons=[];
+    if(getSelectedNumbers().length&&!getSelectedNumbers().includes(String(number))){state.selectedNumbers=[];state.selectedNumber="";}
+    saveState();els.sentenceDialog.close();renderAll();toast(id?"문장을 수정했습니다.":"문장을 추가했습니다.");
+  }
+
+  function deleteSentenceById(id) {
+    const p=currentPlaylist(),index=p?.sentences.findIndex(item=>item.id===id);
+    if(!p||index<0)return;
+    if(!confirm("이 문장을 삭제할까요?"))return;
+    stopEverything();
+    p.sentences.splice(index,1);
+    state.selectedSentenceIds=state.selectedSentenceIds.filter(selected=>selected!==id);
+    if(state.currentSentenceId===id)state.currentSentenceId=p.sentences[Math.min(index,p.sentences.length-1)]?.id||null;
+    saveState();if(els.sentenceDialog.open)els.sentenceDialog.close();renderAll();toast("문장을 삭제했습니다.");
   }
 
   async function startPractice() {
@@ -662,6 +727,7 @@
     const p=currentPlaylist(); if(!p?.sentences.length)return;
     let list=sortedSentences(p); if(state.reviewOnly)list=list.filter(s=>s.review);
     if(els.sortSelect?.value==="shuffle") list=shuffle([...list]);
+    stopEverything();
     switchView("studyView");
     await runQueue(list);
   }
@@ -671,7 +737,7 @@
     let list=sortedSentences(p).filter(s=>state.selectedSentenceIds.includes(s.id));
     if(!list.length){toast("연습할 문장을 선택해 주세요.");return;}
     if(els.sortSelect?.value==="shuffle") list=shuffle(list);
-    switchView("studyView"); await runQueue(list);
+    stopEverything();switchView("studyView"); await runQueue(list);
   }
 
   async function runQueue(list) {
@@ -977,37 +1043,81 @@
     for(const id of ids)await removeRecording(id);renderRecordings();
   }
 
-  async function mergeSelectedRecordings(){
-    const ids=selectedRecordingIds(); if(ids.length<2){toast("병합할 녹음을 2개 이상 선택해 주세요.");return;}
-    toast("선택한 순서대로 녹음을 병합합니다.");
-    try{
-      const records=[];for(const id of ids)records.push(await getRecording(id));
-      const audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-      const buffers=[];
-      for(const r of records){const ab=await r.blob.arrayBuffer();buffers.push(await audioCtx.decodeAudioData(ab.slice(0)))}
-      const channels=Math.max(...buffers.map(b=>b.numberOfChannels));
-      const sampleRate=buffers[0].sampleRate;
-      const normalized=[];
-      for(const b of buffers){
-        if(b.sampleRate!==sampleRate){throw new Error("녹음 샘플레이트가 달라 브라우저 병합을 할 수 없습니다.")}
-        normalized.push(b);
-      }
-      const totalFrames=normalized.reduce((n,b)=>n+b.length,0);
-      const merged=audioCtx.createBuffer(channels,totalFrames,sampleRate);
-      let offset=0;
-      for(const b of normalized){
-        for(let ch=0;ch<channels;ch++){
-          const src=b.getChannelData(Math.min(ch,b.numberOfChannels-1));
-          merged.getChannelData(ch).set(src,offset);
+  function readRecordingBytes(blob){
+    if(typeof blob.arrayBuffer==="function")return blob.arrayBuffer();
+    return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(reader.error);reader.readAsArrayBuffer(blob);});
+  }
+  function decodeRecording(context,bytes){
+    return new Promise((resolve,reject)=>{
+      let settled=false;
+      const ok=buffer=>{if(!settled){settled=true;resolve(buffer);}};
+      const fail=error=>{if(!settled){settled=true;reject(error);}};
+      try{
+        const result=context.decodeAudioData(bytes.slice(0),ok,fail);
+        if(result&&typeof result.then==="function")result.then(ok,fail);
+      }catch(error){fail(error);}
+    });
+  }
+  function joinRecordingBuffers(context,buffers){
+    const sampleRate=context.sampleRate||buffers[0].sampleRate;
+    const channels=Math.max(...buffers.map(b=>b.numberOfChannels));
+    const lengths=buffers.map(b=>Math.max(1,Math.round(b.length*sampleRate/b.sampleRate)));
+    const total=lengths.reduce((sum,n)=>sum+n,0);
+    const merged=context.createBuffer(channels,total,sampleRate);
+    let offset=0;
+    buffers.forEach((b,index)=>{
+      const length=lengths[index];
+      for(let ch=0;ch<channels;ch++){
+        const source=b.getChannelData(Math.min(ch,b.numberOfChannels-1));
+        const target=merged.getChannelData(ch);
+        if(b.sampleRate===sampleRate){target.set(source,offset);continue;}
+        for(let i=0;i<length;i++){
+          const position=i*b.sampleRate/sampleRate;
+          const left=Math.min(Math.floor(position),source.length-1),right=Math.min(left+1,source.length-1);
+          const fraction=position-left;
+          target[offset+i]=source[left]*(1-fraction)+source[right]*fraction;
         }
-        offset+=b.length;
       }
-      const wav=audioBufferToWav(merged);
-      const blob=new Blob([wav],{type:"audio/wav"});
+      offset+=length;
+    });
+    return merged;
+  }
+  async function mergeSelectedRecordings(){
+    const button=$("#mergeBtn");if(button.disabled)return;
+    const ids=selectedRecordingIds();
+    if(ids.length<2){toast("병합할 녹음을 2개 이상 체크해 주세요.");return;}
+    const Context=window.AudioContext||window.webkitAudioContext;
+    if(!Context){toast("이 브라우저는 녹음 병합을 지원하지 않습니다. 다른 브라우저에서 시도해 주세요.");return;}
+    let context;
+    button.disabled=true;button.textContent="병합 중…";
+    try{
+      // Start the context while this call still has the user's button gesture.
+      context=new Context();
+      const resumed=context.state==="suspended"?context.resume():null;
+      if(resumed&&typeof resumed.catch==="function")resumed.catch(console.warn);
+      const buffers=[];
+      for(let index=0;index<ids.length;index++){
+        button.textContent=`변환 ${index+1}/${ids.length}`;
+        const record=await getRecording(ids[index]);
+        if(!record?.blob?.size)throw new Error(`${index+1}번째 녹음 파일이 없거나 비어 있습니다.`);
+        try{
+          const buffer=await decodeRecording(context,await readRecordingBytes(record.blob));
+          if(!buffer?.length)throw new Error("empty audio");
+          buffers.push(buffer);
+        }catch(error){console.error(error);throw new Error(`${index+1}번째 녹음의 음성 형식을 읽지 못했습니다. 해당 파일을 다운로드해 확인해 주세요.`);}
+      }
+      button.textContent="파일 저장 중…";
+      const merged=joinRecordingBuffers(context,buffers);
+      const blob=new Blob([audioBufferToWav(merged)],{type:"audio/wav"});
       const name=`FLORA_Practice_${dateStamp()}.wav`;
       await addRecording({id:uid(),blob,mimeType:"audio/wav",createdAt:Date.now(),duration:merged.duration,sentenceId:null,english:"병합 녹음",name});
-      await saveBlob(blob,name); await audioCtx.close(); await renderRecordings(); toast("병합을 완료했습니다.");
-    }catch(e){console.error(e);toast("이 브라우저에서는 선택한 녹음을 병합하지 못했습니다.")}
+      await renderRecordings();
+      toast("병합 완료! 녹음 목록 맨 위의 ‘병합 녹음’에서 재생하거나 다운로드해 주세요.");
+    }catch(error){console.error(error);toast(error.message||"녹음 병합 중 오류가 발생했습니다.");}
+    finally{
+      if(context&&context.state!=="closed"){try{await context.close();}catch{}}
+      button.disabled=false;button.textContent="병합";
+    }
   }
 
   function audioBufferToWav(buffer){
