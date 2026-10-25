@@ -55,6 +55,7 @@
   const els = {
     views: $$(".view"), navBtns: $$(".nav-btn"),
     currentPlaylistName: $("#currentPlaylistName"), sentenceCounter: $("#sentenceCounter"),
+    recordBtn: $("#recordBtn"),
     favoriteBtn: $("#favoriteBtn"), englishText: $("#englishText"), koreanText: $("#koreanText"), descriptionArea: $("#descriptionArea"), descriptionText: $("#descriptionText"),
     playStatus: $("#playStatus"), timerText: $("#timerText"), countdownArea: $("#countdownArea"), countdownNumber: $("#countdownNumber"), countdownLabel: $("#countdownLabel"),
     repeatSelect: $("#repeatSelect"), delaySelect: $("#delaySelect"), speedSelect: $("#speedSelect"), languageSelect: $("#languageSelect"),
@@ -70,7 +71,7 @@
 
   function init() {
     const version=document.querySelector(".version-badge");
-    if(version){version.textContent="1.011";version.setAttribute("aria-label","실행 버전 1.011");}
+    if(version){version.textContent="v01.015";version.setAttribute("aria-label","실행 버전 v01.015");}
     state.settings.autoRecord=false;
     for (let i=1;i<=10;i++) els.delaySelect.insertAdjacentHTML("beforeend", `<option value="${i}">${i}초</option>`);
     for (let i=5;i<=10;i++) {
@@ -251,7 +252,7 @@
           <h3>${escapeHtml(p.name)}</h3>
           <div class="playlist-meta"><span>${Math.min(currentIdx,p.sentences.length)} / ${p.sentences.length}</span><span>${state.settings.speed}x</span><span>★ ${reviewCount}</span></div>
         </div>
-        <button class="menu" data-action="playlist-menu">⋮</button>
+        <div class="playlist-card-actions"><button type="button" class="playlist-share-btn" data-action="share-playlist">공유</button><button class="menu" data-action="playlist-menu" aria-label="플레이리스트 관리">⋮</button></div>
       </article>`;
     }).join("") : `<p class="muted">플레이리스트가 없습니다.</p>`;
     const delBtn=$("#deletePlaylistsBtn");
@@ -412,6 +413,10 @@
     $("#practiceSelectedBtn").addEventListener("click",()=>startSelectedPractice());
 
     $("#createPlaylistSubmit").addEventListener("click", createPlaylistFromDialog);
+    $("#importFileInput").addEventListener("change",()=>{
+      const file=$("#importFileInput").files[0];
+      if(file&&!$("#playlistNameInput").value.trim())$("#playlistNameInput").value=file.name.replace(/\.(csv|txt)$/i,"").replace(/_공유$/,"");
+    });
     $("#sentenceForm").addEventListener("submit",saveSentenceFromDialog);
     $("#sentenceEditorSelect").addEventListener("change",()=>{
       const id=$("#sentenceEditorSelect").value;
@@ -456,13 +461,10 @@
   }
   function bindSwipeNavigation(){
     const shell=$("#appShell");let gesture=null,suppressClickUntil=0;
-    const excluded="button,input,select,textarea,a,audio,summary,dialog,.number-picker,.lesson-toolbar,.bottom-action-bar";
     const begin=(target,x,y,id)=>{
       gesture=null;
-      if(document.querySelector("dialog[open]")||target.closest(excluded))return;
-      const text=target.closest(".english-text,.korean-text");
-      if(text&&text.scrollWidth>text.clientWidth+1)return;
-      const view=target.closest(".view.active");
+      if(document.querySelector("dialog[open]"))return;
+      const view=target.closest(".view.active")||document.querySelector(".view.active");
       if(!view||!["studyView","playlistView"].includes(view.id))return;
       gesture={x,y,id,view:view.id,vertical:false};
     };
@@ -480,7 +482,7 @@
         suppressClickUntil=Date.now()+400;switchView(destination);
       }
     };
-    shell.addEventListener("click",event=>{
+    document.addEventListener("click",event=>{
       if(Date.now()<suppressClickUntil){event.preventDefault();event.stopImmediatePropagation();}
     },true);
     if(window.PointerEvent){
@@ -537,6 +539,7 @@
     const p = state.playlists.find(x=>x.id===card.dataset.playlistId);
     if (!p) return;
 
+    if(e.target.closest('[data-action="share-playlist"]')){sharePlaylistFile(p);return;}
     if (e.target.closest('[data-action="playlist-menu"]')) {
       const action = prompt(`"${p.name}" 관리\n1: 이름 변경\n2: 삭제`, "1");
       if (action==="1") {
@@ -620,12 +623,38 @@
     saveState(); renderStudy();
   }
 
+  function playlistShareCsv(playlist){
+    const quote=value=>'"'+String(value??"").replace(/"/g,'""')+'"';
+    const rows=[["LESSON","순번","ENGLISH","KOREAN","DESCRIPTION"]];
+    // Share only learning content; never include personal learning state or IDs.
+    const sentences=[...playlist.sentences].sort((a,b)=>lessonNumber(a.lesson)-lessonNumber(b.lesson)||lessonLabel(a.lesson).localeCompare(lessonLabel(b.lesson))||sentenceNumber(a)-sentenceNumber(b));
+    for(const sentence of sentences)rows.push([sentence.lesson,sentenceNumber(sentence),sentence.english,sentence.korean,sentence.description]);
+    return "\uFEFF"+rows.map(row=>row.map(quote).join(",")).join("\r\n");
+  }
+  async function sharePlaylistFile(playlist){
+    if(!playlist.sentences.length){toast("공유할 문장이 없습니다.");return;}
+    const csv=playlistShareCsv(playlist);
+    const name=(playlist.name.replace(/[\\/:*?"<>|]/g,"_")||"플레이리스트")+"_공유.csv";
+    const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+    try{
+      const file=new File([blob],name,{type:"text/csv"});
+      if(navigator.share&&navigator.canShare?.({files:[file]})){
+        await navigator.share({files:[file],title:playlist.name});return;
+      }
+    }catch(error){if(error.name==="AbortError")return;console.warn(error);}
+    downloadBlob(blob,name);toast("공유 파일을 저장했습니다. 이 파일을 받는 분에게 보내 주세요.");
+  }
+
   function createPlaylistFromDialog(e) {
     e.preventDefault();
-    const name=$("#playlistNameInput").value.trim();
+    let name=$("#playlistNameInput").value.trim();
     const file=$("#importFileInput").files[0];
     if(!name){toast("플레이리스트 제목을 입력해 주세요.");return;}
-    let p=state.playlists.find(x=>x.name===name);
+    if(file){
+      const original=name;let suffix=2;
+      while(state.playlists.some(p=>p.name===name))name=`${original} (${suffix++})`;
+    }
+    let p=file?null:state.playlists.find(x=>x.name===name);
     if(!p){ p={id:uid(),name,description:"",sentences:[]}; state.playlists.push(p); }
     state.currentPlaylistId=p.id; state.currentSentenceId=null; state.selectedLessons=[]; state.selectedNumber="";state.selectedNumbers=[];
     if(file) {
@@ -816,6 +845,7 @@
     if(session.playing)return;
     session.playing=true; session.stopRequested=false; session.currentPlayQueue=list;
     const runId=++playbackGeneration;
+    startPlaybackClock();
     try {
       for(let index=0;index<list.length;index++) {
         const s=list[index];
@@ -829,7 +859,7 @@
         }
       }
     } catch(err){if(err?.message!=="STOP")console.error(err)}
-    finally{if(runId===playbackGeneration){session.playing=false;session.currentPlayQueue=null;setStatus("준비")}}
+    finally{if(runId===playbackGeneration){stopPlaybackClock();session.playing=false;session.currentPlayQueue=null;setStatus("준비")}}
   }
 
   function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
@@ -898,16 +928,38 @@
     });
   }
 
+  function updatePlaybackClock(){
+    const elapsed=(session.clockElapsed||0)+(session.clockRunning?Date.now()-session.clockAnchor:0);
+    const seconds=Math.floor(Math.max(0,elapsed)/1000);
+    els.timerText.textContent=`${String(Math.floor(seconds/60)).padStart(2,"0")}:${String(seconds%60).padStart(2,"0")}`;
+  }
+  function startPlaybackClock(){
+    clearInterval(session.clockTimer);session.clockElapsed=0;session.clockAnchor=Date.now();session.clockRunning=true;
+    updatePlaybackClock();session.clockTimer=setInterval(updatePlaybackClock,200);
+  }
+  function pausePlaybackClock(){
+    if(session.clockRunning)session.clockElapsed=(session.clockElapsed||0)+Date.now()-session.clockAnchor;
+    session.clockRunning=false;updatePlaybackClock();
+  }
+  function resumePlaybackClock(){
+    if(session.clockRunning)return;
+    session.clockAnchor=Date.now();session.clockRunning=true;updatePlaybackClock();
+  }
+  function stopPlaybackClock(){
+    pausePlaybackClock();clearInterval(session.clockTimer);session.clockTimer=null;
+  }
+
   function togglePause() {
     if(!session.playing&&!session.pauseSpeech)return;
     session.paused=!session.paused;
     const button=$("#playBtn");
     if(button){button.textContent=session.paused?"▶":"Ⅱ";button.setAttribute("aria-label",session.paused?"재개":"일시정지");}
-    if(session.paused){session.pauseSpeech?.();setStatus("Ⅱ 일시정지");}
-    else{session.resumeSpeech?.();setStatus(session.pauseSpeech?"🎧 재생 중":"지연 중");}
+    if(session.paused){pausePlaybackClock();session.pauseSpeech?.();setStatus("Ⅱ 일시정지");}
+    else{resumePlaybackClock();session.resumeSpeech?.();setStatus(session.pauseSpeech?"🎧 재생 중":"지연 중");}
   }
 
   function stopEverything() {
+    stopPlaybackClock();
     playbackGeneration++;
     session.stopRequested=true; session.paused=false; session.playing=false; session.currentPlayQueue=null;
     for(const cancel of [...playbackCancellations])cancel();
@@ -986,8 +1038,11 @@
       session.recordingSaving=true;setRecordButton("saving");session.mediaRecorder.stop();return;
     }
     if(session.playing||session.pauseSpeech)stopEverything();
-    session.recordingStarting=true;setRecordButton("starting");setStatus("마이크 권한을 확인하고 있습니다.");
-    try{await startRecording(null,currentSentence());}
+    session.recordingStarting=true;
+    try{
+      setRecordButton("starting");setStatus("마이크 권한을 확인하고 있습니다.");
+      await startRecording(null,currentSentence());
+    }
     catch(err){
       console.error(err);setRecordButton("idle");
       const message=recordingErrorMessage(err);setStatus(message);toast(message);
@@ -1031,7 +1086,7 @@
         try {
         await addRecording({
           id:uid(),blob,mimeType:blob.type,createdAt:Date.now(),duration:elapsed,
-          sentenceId:sentence?.id||null,english:sentence?.english||"직접 녹음",
+          sentenceId:sentence?.id||null,lesson:sentence?.lesson||"",number:sentence?sentenceNumber(sentence):null,english:sentence?.english||"직접 녹음",
           name:`sentence_${String((state.currentIndex||0)+1).padStart(3,"0")}_${dateStamp()}.${extensionFor(blob.type)}`
         });
         setRecordButton("complete");setStatus("✓ 녹음 완료");
@@ -1079,12 +1134,15 @@
   }
   async function removeRecording(id){await withStore("readwrite",s=>s.delete(id));}
 
+  let recordingObjectUrls=[];
   async function renderRecordings() {
     const list=(await getAllRecordings()).sort((a,b)=>b.createdAt-a.createdAt);
     els.recordingCount.textContent=list.length;
     els.recordingSize.textContent=formatBytes(list.reduce((sum,r)=>sum+(r.blob?.size||0),0));
+    els.recordingList.querySelectorAll("audio").forEach(audio=>audio.pause());
+    recordingObjectUrls.forEach(url=>URL.revokeObjectURL(url));recordingObjectUrls=[];
     els.recordingList.innerHTML=list.length ? list.map(r=>{
-      const url=URL.createObjectURL(r.blob);
+      const url=URL.createObjectURL(r.blob);recordingObjectUrls.push(url);
       return `<article class="recording-card" data-recording-id="${r.id}">
         <input class="recording-check" type="checkbox">
         <div class="recording-info">
@@ -1158,8 +1216,10 @@
   function decodeRecording(context,bytes){
     return new Promise((resolve,reject)=>{
       let settled=false;
-      const ok=buffer=>{if(!settled){settled=true;resolve(buffer);}};
-      const fail=error=>{if(!settled){settled=true;reject(error);}};
+      let timeout;
+      const ok=buffer=>{if(!settled){settled=true;clearTimeout(timeout);resolve(buffer);}};
+      const fail=error=>{if(!settled){settled=true;clearTimeout(timeout);reject(error||new Error("이 음성 형식을 브라우저에서 읽지 못했습니다."));}};
+      timeout=setTimeout(()=>fail(new Error("음성 변환 시간이 초과되었습니다.")),20000);
       try{
         const result=context.decodeAudioData(bytes.slice(0),ok,fail);
         if(result&&typeof result.then==="function")result.then(ok,fail);
@@ -1190,39 +1250,87 @@
     });
     return merged;
   }
+  function pcmRecordingChunk(buffer,rate,channels=2){
+    const frames=Math.max(1,Math.round(buffer.length*rate/buffer.sampleRate));
+    const data=new ArrayBuffer(frames*channels*2),view=new DataView(data);
+    const sources=Array.from({length:channels},(_,ch)=>buffer.getChannelData(Math.min(ch,buffer.numberOfChannels-1)));
+    for(let i=0;i<frames;i++){
+      const position=i*buffer.sampleRate/rate;
+      const left=Math.min(Math.floor(position),buffer.length-1),right=Math.min(left+1,buffer.length-1),fraction=position-left;
+      for(let ch=0;ch<channels;ch++){
+        const source=sources[ch];let value=source[left]*(1-fraction)+source[right]*fraction;
+        value=Math.max(-1,Math.min(1,Number.isFinite(value)?value:0));
+        view.setInt16((i*channels+ch)*2,value<0?value*32768:value*32767,true);
+      }
+    }
+    return {data,frames};
+  }
+  function mergedWavHeader(frames,rate,channels=2){
+    const dataSize=frames*channels*2;
+    if(dataSize>4294967259)throw new Error("병합 파일이 너무 큽니다. 녹음을 나누어 병합해 주세요.");
+    const header=new ArrayBuffer(44),view=new DataView(header);
+    writeStr(view,0,"RIFF");view.setUint32(4,36+dataSize,true);writeStr(view,8,"WAVE");writeStr(view,12,"fmt ");
+    view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,channels,true);view.setUint32(24,rate,true);
+    view.setUint32(28,rate*channels*2,true);view.setUint16(32,channels*2,true);view.setUint16(34,16,true);
+    writeStr(view,36,"data");view.setUint32(40,dataSize,true);return header;
+  }
+  function recordingLessonAndNumber(record){
+    const sentence=state.playlists.flatMap(p=>p.sentences).find(s=>s.id===record.sentenceId);
+    const raw=record.lesson||sentence?.lesson;
+    const lesson=raw?lessonNumber(raw):9999;
+    const number=record.number||(sentence?sentenceNumber(sentence):null);
+    return {lesson:lesson===9999?"미지정":String(lesson),number:number?String(number):"미지정"};
+  }
+  function mergedRecordingFileName(record,existing,date){
+    const values=recordingLessonAndNumber(record);
+    const prefix=`${values.lesson}_${values.number}_${date}_`;
+    let sequence=1;
+    for(const item of existing){
+      if(!item.name?.startsWith(prefix))continue;
+      const suffix=item.name.slice(prefix.length).match(/^(\d+)\.wav$/i);
+      if(suffix)sequence=Math.max(sequence,Number(suffix[1])+1);
+    }
+    return prefix+String(sequence).padStart(3,"0")+".wav";
+  }
+
   async function mergeSelectedRecordings(){
-    const button=$("#mergeBtn");if(button.disabled)return;
+    const button=$("#mergeBtn"),status=$("#mergeStatus");if(button.disabled)return;
     const ids=selectedRecordingIds();
     if(ids.length<2){toast("병합할 녹음을 2개 이상 체크해 주세요.");return;}
+    if(session.mediaRecorder?.state==="recording"||session.recordingSaving){toast("녹음을 끝내고 저장이 완료된 뒤 병합해 주세요.");return;}
     const Context=window.AudioContext||window.webkitAudioContext;
-    if(!Context){toast("이 브라우저는 녹음 병합을 지원하지 않습니다. 다른 브라우저에서 시도해 주세요.");return;}
-    let context;
-    button.disabled=true;button.textContent="병합 중…";
+    if(!Context){status.textContent="이 브라우저는 음성 변환을 지원하지 않습니다. 크롬 또는 사파리에서 열어 주세요.";return;}
+    let context,stage="준비";button.disabled=true;button.textContent="병합 중…";
     try{
-      // Start the context while this call still has the user's button gesture.
       context=new Context();
-      const resumed=context.state==="suspended"?context.resume():null;
-      if(resumed&&typeof resumed.catch==="function")resumed.catch(console.warn);
-      const buffers=[];
+      if(context.state==="suspended")context.resume().catch(console.warn);
+      const parts=[];let frames=0;let firstRecord=null;
+      const rate=context.sampleRate||44100;
       for(let index=0;index<ids.length;index++){
-        button.textContent=`변환 ${index+1}/${ids.length}`;
+        stage=`${index+1}번째 녹음 읽기`;status.textContent=`음성 변환 중 ${index+1}/${ids.length}`;
         const record=await getRecording(ids[index]);
-        if(!record?.blob?.size)throw new Error(`${index+1}번째 녹음 파일이 없거나 비어 있습니다.`);
-        try{
-          const buffer=await decodeRecording(context,await readRecordingBytes(record.blob));
-          if(!buffer?.length)throw new Error("empty audio");
-          buffers.push(buffer);
-        }catch(error){console.error(error);throw new Error(`${index+1}번째 녹음의 음성 형식을 읽지 못했습니다. 해당 파일을 다운로드해 확인해 주세요.`);}
+        if(!record?.blob?.size)throw new Error("파일이 비어 있거나 저장되지 않았습니다.");
+        if(!firstRecord)firstRecord=record;
+        stage=`${record.name||`${index+1}번째 녹음`} 음성 변환`;
+        const buffer=await decodeRecording(context,await readRecordingBytes(record.blob));
+        if(!buffer?.length)throw new Error("변환된 음성 데이터가 없습니다.");
+        const chunk=pcmRecordingChunk(buffer,rate);
+        parts.push(chunk.data);frames+=chunk.frames;
+        await new Promise(resolve=>setTimeout(resolve,0));
       }
-      button.textContent="파일 저장 중…";
-      const merged=joinRecordingBuffers(context,buffers);
-      const blob=new Blob([audioBufferToWav(merged)],{type:"audio/wav"});
-      const name=`FLORA_Practice_${dateStamp()}.wav`;
-      await addRecording({id:uid(),blob,mimeType:"audio/wav",createdAt:Date.now(),duration:merged.duration,sentenceId:null,english:"병합 녹음",name});
-      await renderRecordings();
-      toast("병합 완료! 녹음 목록 맨 위의 ‘병합 녹음’에서 재생하거나 다운로드해 주세요.");
-    }catch(error){console.error(error);toast(error.message||"녹음 병합 중 오류가 발생했습니다.");}
-    finally{
+      stage="병합 파일 저장";status.textContent="병합 파일을 저장하고 있습니다.";
+      const blob=new Blob([mergedWavHeader(frames,rate),...parts],{type:"audio/wav"});
+      const name=mergedRecordingFileName(firstRecord,await getAllRecordings(),dateStamp().split("_")[0]);
+      const source=recordingLessonAndNumber(firstRecord);
+      await addRecording({id:uid(),blob,mimeType:"audio/wav",createdAt:Date.now(),duration:frames/rate,sentenceId:null,lesson:source.lesson,number:source.number,english:"병합 녹음",name});
+      await renderRecordings();status.textContent="병합 완료: 목록 맨 위의 ‘병합 녹음’에서 재생·다운로드하세요.";
+      toast("병합 녹음을 저장했습니다.");
+    }catch(error){
+      console.error(error);
+      const detail=error?.name==="QuotaExceededError"?"저장 공간이 부족합니다.":error?.message||error?.name||"알 수 없는 오류";
+      status.textContent=`병합 실패 · ${stage}: ${detail}`;
+      toast("병합하지 못했습니다. 녹음 화면의 오류 안내를 확인해 주세요.");
+    }finally{
       if(context&&context.state!=="closed"){try{await context.close();}catch{}}
       button.disabled=false;button.textContent="병합";
     }
