@@ -382,13 +382,13 @@ dialog{border:0;border-radius:22px;padding:0;width:min(calc(100% - 28px),460px);
 @media(max-width:360px){.playlist-editor-row{gap:3px;padding-left:14px;}.playlist-editor-name{font-size:17px;}.playlist-editor-row .editor-action{flex-basis:32px;width:32px;padding:5px;}}
 
 /* Wide scrollbar for lesson and sentence-number multiselect lists.
-   Desktop native scrollbars are typically 16px; reserve five times that width. */
+   Use a 40px scrollbar for an easier scrolling target. */
 #lessonPicker,#numberPicker{
   scrollbar-gutter:stable;
   scrollbar-width:auto;
 }
 #lessonPicker::-webkit-scrollbar,#numberPicker::-webkit-scrollbar{
-  width:80px;
+  width:40px;
 }
 #lessonPicker::-webkit-scrollbar-track,#numberPicker::-webkit-scrollbar-track{
   background:#e8f1f8;
