@@ -380,3 +380,26 @@ dialog{border:0;border-radius:22px;padding:0;width:min(calc(100% - 28px),460px);
 .playlist-editor-row .editor-drag{touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab;}
 .playlist-editor-empty{text-align:center;padding:48px 0;color:#68727b;}
 @media(max-width:360px){.playlist-editor-row{gap:3px;padding-left:14px;}.playlist-editor-name{font-size:17px;}.playlist-editor-row .editor-action{flex-basis:32px;width:32px;padding:5px;}}
+
+/* Wide scrollbar for lesson and sentence-number multiselect lists.
+   Desktop native scrollbars are typically 16px; reserve five times that width. */
+#lessonPicker,#numberPicker{
+  scrollbar-gutter:stable;
+  scrollbar-width:auto;
+}
+#lessonPicker::-webkit-scrollbar,#numberPicker::-webkit-scrollbar{
+  width:80px;
+}
+#lessonPicker::-webkit-scrollbar-track,#numberPicker::-webkit-scrollbar-track{
+  background:#e8f1f8;
+  border-radius:10px;
+}
+#lessonPicker::-webkit-scrollbar-thumb,#numberPicker::-webkit-scrollbar-thumb{
+  background:#7396ad;
+  border:6px solid #e8f1f8;
+  border-radius:16px;
+  min-height:48px;
+}
+#lessonPicker::-webkit-scrollbar-thumb:hover,#numberPicker::-webkit-scrollbar-thumb:hover{
+  background:#365f7a;
+}
