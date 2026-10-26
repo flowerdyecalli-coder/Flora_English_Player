@@ -403,3 +403,10 @@ dialog{border:0;border-radius:22px;padding:0;width:min(calc(100% - 28px),460px);
 #lessonPicker::-webkit-scrollbar-thumb:hover,#numberPicker::-webkit-scrollbar-thumb:hover{
   background:#365f7a;
 }
+
+/* v01.037: four description lines and a compact playback/settings gap. */
+#studyView .description-text{max-height:5.8em;}
+.player-card .transport{margin-bottom:6px;}
+.player-card #countdownArea{height:16px;min-height:16px;max-height:16px;line-height:16px;margin-bottom:0;}
+.player-card .reference-settings{margin-top:4px;}
+@media(min-width:521px){#studyView .description-text{max-height:6.4em;}}

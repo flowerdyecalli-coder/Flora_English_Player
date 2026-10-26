@@ -380,7 +380,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
 
   function init() {
     const version=document.querySelector(".version-badge");
-    if(version){version.textContent="v01.033";version.setAttribute("aria-label","실행 버전 v01.033");}
+    if(version){version.textContent="v01.037";version.setAttribute("aria-label","실행 버전 v01.037");}
     state.settings.autoRecord=false;
     for (let i=1;i<=10;i++) els.delaySelect.insertAdjacentHTML("beforeend", `<option value="${i}">${i}초</option>`);
     for (let i=5;i<=10;i++) {
@@ -585,7 +585,8 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     $("#lessonDropdownSummary").textContent=state.lessonSelectionNone?"선택 없음":allLessons?"전체":chosenLessons.length>2?`${chosenLessons.length}개 레슨`:chosenLessons.map(lessonOptionText).join(", ");
     els.lessonPicker.innerHTML=`<label class="number-all ${allLessons?"active":""}"><input type="checkbox" data-lesson-all ${allLessons?"checked":""}>전체</label>`+
       lessons.map(l=>`<label class="number-option"><input type="checkbox" data-lesson="${escapeHtml(l)}" ${chosenLessons.includes(l)?"checked":""}>${escapeHtml(lessonOptionText(l))}</label>`).join("");
-    const matching=p.sentences.filter(sentence=>chosenLessons.includes(lessonLabel(sentence.lesson)));
+    // Keep number options visible even when the last lesson is unchecked.
+    const matching=chosenLessons.length?p.sentences.filter(sentence=>chosenLessons.includes(lessonLabel(sentence.lesson))):p.sentences;
     const numbers=[...new Set(matching.map(sentenceNumber))].sort((a,b)=>a-b);
     const chosen=getSelectedNumbers();
     const allNumbers=!state.numberSelectionNone&&numbers.length>0&&(!chosen.length||numbers.every(n=>chosen.includes(String(n))));
@@ -667,6 +668,10 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     };
     const begin=(target,x,y,id,event)=>{
       if(gesture)return;
+      // Native scrollbar gestures must never toggle checkboxes.
+      const rect=picker.getBoundingClientRect();
+      const contentLeft=rect.left+picker.clientLeft;
+      if(x<contentLeft||x>=contentLeft+picker.clientWidth)return;
       const row=target.closest(".number-option"),input=row?.querySelector(selector);
       if(!row||!picker.contains(row)||!input||input.disabled)return;
       if(event.cancelable)event.preventDefault();
