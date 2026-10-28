@@ -421,3 +421,28 @@ dialog{border:0;border-radius:22px;padding:0;width:min(calc(100% - 28px),460px);
 }
 
 /* v01.040: new and merged recording files are named YYYYMMDD_###.mp3. */
+
+/* v01.042: persistent five-language selector in the top bar. */
+.brand-actions{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.target-language-field{display:flex;align-items:center;min-width:0}
+.target-language-field select{appearance:auto;-webkit-appearance:menulist;border:1px solid #d5e1ea;background:#e8f1f8;color:#294e68;border-radius:9px;padding:7px 5px;font-size:13px;font-weight:750;max-width:109px;min-width:76px;cursor:pointer}
+.visually-hidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.missing-translation{font-size:clamp(15px,4.2vw,18px)!important;line-height:1.6;color:#767f89;font-weight:500;white-space:normal!important}
+.sentence-row .no-translation{color:#9aa1aa;font-weight:500}
+@media(max-width:520px){
+  .brand-header{padding-left:10px;padding-right:10px;gap:4px;flex-wrap:nowrap}
+  .brand-header .brand{gap:6px}
+  .brand-header .brand-logo{width:34px;height:34px}
+  .brand-header .brand-copy strong{font-size:15px;letter-spacing:0.04em;white-space:nowrap}
+  .brand-header .brand-copy span{font-size:11px}
+  .brand-header .version-badge{font-size:9px!important;padding:1px 3px;margin-left:1px}
+  .brand-header .icon-btn{padding:5px;font-size:20px}
+  .brand-actions{gap:2px}
+  .target-language-field select{font-size:13px;padding:6px 2px;max-width:92px}
+}
+@media(max-width:350px){
+  .brand-header .brand-logo{width:27px;height:27px}
+  .brand-header .brand-copy strong{font-size:13px}
+  .brand-header .brand-copy span{font-size:10px}
+  .target-language-field select{max-width:81px;font-size:12px}
+}

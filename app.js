@@ -314,6 +314,29 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   const DB_NAME = "FloraEnglishPlayerDB";
   const DB_VERSION = 1;
   const RECORDING_STORE = "recordings";
+  const TARGET_LANGUAGES = Object.freeze({
+    en: { name: "영어", short: "영", field: "english", voice: "en-US" },
+    ja: { name: "일본어", short: "일", field: "japanese", voice: "ja-JP" },
+    es: { name: "스페인어", short: "스", field: "spanish", voice: "es-ES" },
+    de: { name: "독일어", short: "독", field: "german", voice: "de-DE" },
+    fr: { name: "프랑스어", short: "프", field: "french", voice: "fr-FR" }
+  });
+  function selectedTarget(){return TARGET_LANGUAGES[state.settings.targetLanguage] || TARGET_LANGUAGES.en;}
+  function foreignSentence(sentence){return String(sentence?.[selectedTarget().field] || "").trim();}
+  function hasForeignSentence(sentence){return Object.values(TARGET_LANGUAGES).some(lang=>String(sentence?.[lang.field]||"").trim());}
+  function refreshLanguageModes(){
+    const target=selectedTarget();
+    const names={EN:target.short,KR:"한",EN_KR:`${target.short}→한`,KR_EN:`한→${target.short}`};
+    const descriptions={EN:target.name,KR:"한국어",EN_KR:`${target.name} → 한국어`,KR_EN:`한국어 → ${target.name}`};
+    [...els.languageSelect.options].forEach(option=>{
+      option.textContent=names[option.value];
+      option.title=descriptions[option.value];
+      option.setAttribute("aria-label",descriptions[option.value]);
+    });
+    els.languageSelect.setAttribute("aria-label",`재생 순서 (${target.name})`);
+    $("#foreignInputLabel") && ($("#foreignInputLabel").textContent=`${target.name} 문장`);
+    syncControlValues();
+  }
 
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
@@ -345,7 +368,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     selectedLessons: [],
     selectedNumber: "", selectedNumbers: [],
     settings: {
-      repeat: "3", delay: "5", speed: "0.8", language: "EN_KR",
+      repeat: "3", delay: "5", speed: "0.8", language: "EN_KR", targetLanguage: "en",
       displayMode: "both", autoRecord: false, recordDuration: "5", autoNext: true
     }
   };
@@ -367,7 +390,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     recordBtn: $("#recordBtn"),
     favoriteBtn: $("#favoriteBtn"), currentSentenceLocation: $("#currentSentenceLocation"), englishText: $("#englishText"), koreanText: $("#koreanText"), descriptionArea: $("#descriptionArea"), descriptionText: $("#descriptionText"),
     playStatus: $("#playStatus"), timerText: $("#timerText"), countdownArea: $("#countdownArea"), countdownNumber: $("#countdownNumber"), countdownLabel: $("#countdownLabel"),
-    repeatSelect: $("#repeatSelect"), delaySelect: $("#delaySelect"), speedSelect: $("#speedSelect"), languageSelect: $("#languageSelect"),
+    repeatSelect: $("#repeatSelect"), delaySelect: $("#delaySelect"), speedSelect: $("#speedSelect"), languageSelect: $("#languageSelect"), targetLanguageSelect: $("#targetLanguageSelect"),
     playlistCards: $("#playlistCards"), playlistDetail: $("#playlistDetail"), detailPlaylistName: $("#detailPlaylistName"),
     detailTotal: $("#detailTotal"), sentenceList: $("#sentenceList"), sortSelect: $("#sortSelect"), playModeSelect: $("#playModeSelect"),
     lessonPicker: $("#lessonPicker"), numberPicker: $("#numberPicker"),
@@ -380,7 +403,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
 
   function init() {
     const version=document.querySelector(".version-badge");
-    if(version){version.textContent="v01.040";version.setAttribute("aria-label","실행 버전 v01.040");}
+    if(version){version.textContent="v01.042";version.setAttribute("aria-label","실행 버전 v01.042");}
     state.settings.autoRecord=false;
     for (let i=1;i<=10;i++) els.delaySelect.insertAdjacentHTML("beforeend", `<option value="${i}">${i}초</option>`);
     for (let i=5;i<=10;i++) {
@@ -530,6 +553,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
       els.sentenceCounter.textContent = "0 / 0";
       els.englishText.classList.remove("hidden");
       els.koreanText.classList.add("hidden");
+      els.englishText.classList.remove("missing-translation");
       els.englishText.textContent = "플레이리스트에서 문장을 추가해 주세요.";
       els.koreanText.textContent = "";
       els.descriptionText.textContent = "";
@@ -542,7 +566,14 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     const idx = p.sentences.findIndex(x=>x.id===s.id);
     state.currentIndex = idx >= 0 ? idx : 0;
     els.sentenceCounter.textContent = `${state.currentIndex+1} / ${p.sentences.length}`;
-    els.englishText.innerHTML = highlightSentencePattern(s);
+    const foreign=foreignSentence(s);
+    if(foreign){
+      els.englishText.classList.remove("missing-translation");
+      els.englishText.innerHTML=selectedTarget().field==="english" ? highlightSentencePattern(s) : escapeHtml(foreign);
+    }else{
+      els.englishText.classList.add("missing-translation");
+      els.englishText.textContent=`${selectedTarget().name} 문장이 없습니다. 문장 수정 또는 CSV 파일에서 추가해 주세요.`;
+    }
     els.koreanText.textContent = s.korean || "";
     els.descriptionText.textContent = s.description || "";
     els.descriptionArea.classList.toggle("hidden", !s.description || state.settings.showInfo===false);
@@ -734,7 +765,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
         <input class="sentence-check" type="checkbox" ${checked?"checked":""} aria-label="문장 선택">
         <button class="play-one" data-action="play-one">▶</button>
         <div class="sentence-body" data-action="open-sentence">
-          <div class="en">${escapeHtml(s.english||"")}</div>
+          <div class="en ${foreignSentence(s)?"":"no-translation"}">${escapeHtml(foreignSentence(s)||`${selectedTarget().name} 문장 없음`)}</div>
           ${s.korean ? `<div class="kr">${escapeHtml(s.korean)}</div>`:""}
           <div class="sentence-lesson">${escapeHtml(lessonDisplay(s.lesson))} · ${sentenceNumber(s)}번</div>
         </div>
@@ -750,7 +781,10 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     els.repeatSelect.value = state.settings.repeat;
     els.delaySelect.value = state.settings.delay;
     els.speedSelect.value = state.settings.speed;
+    els.targetLanguageSelect.value=TARGET_LANGUAGES[state.settings.targetLanguage] ? state.settings.targetLanguage : "en";
+    state.settings.targetLanguage=els.targetLanguageSelect.value;
     els.languageSelect.value = state.settings.language;
+    refreshLanguageModes();
 
     syncControlValues();
   }
@@ -789,6 +823,15 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
       });
     });
     els.languageSelect.addEventListener("change",renderStudy);
+    els.targetLanguageSelect.addEventListener("change",()=>{
+      stopEverything({keepRecording:true});
+      state.settings.targetLanguage=TARGET_LANGUAGES[els.targetLanguageSelect.value] ? els.targetLanguageSelect.value : "en";
+      refreshLanguageModes();
+      saveState();
+      renderAll();
+      const s=currentSentence();
+      if(s && !foreignSentence(s))toast(`${selectedTarget().name} 문장이 없습니다. 문장 수정이나 언어별 CSV로 추가해 주세요.`);
+    });
 
     els.playlistCards.addEventListener("click", handlePlaylistCardClick);
     els.playlistCards.addEventListener("change", e=>{
@@ -1136,10 +1179,10 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
 
   function playlistShareCsv(playlist){
     const quote=value=>'"'+String(value??"").replace(/"/g,'""')+'"';
-    const rows=[["LESSON","순번","ENGLISH","KOREAN","DESCRIPTION"]];
+    const rows=[["LESSON","순번","EXAMPLE_EN","EXAMPLE_JA","EXAMPLE_ES","EXAMPLE_DE","EXAMPLE_FR","EXAMPLE_KR","DESCRIPTION"]];
     // Share only learning content; never include personal learning state or IDs.
     const sentences=[...playlist.sentences].sort((a,b)=>lessonNumber(a.lesson)-lessonNumber(b.lesson)||lessonLabel(a.lesson).localeCompare(lessonLabel(b.lesson))||sentenceNumber(a)-sentenceNumber(b));
-    for(const sentence of sentences)rows.push([sentence.lesson,sentenceNumber(sentence),sentence.english,sentence.korean,sentence.description]);
+    for(const sentence of sentences)rows.push([sentence.lesson,sentenceNumber(sentence),sentence.english,sentence.japanese,sentence.spanish,sentence.german,sentence.french,sentence.korean,sentence.description]);
     return "\uFEFF"+rows.map(row=>row.map(quote).join(",")).join("\r\n");
   }
   async function sharePlaylistFile(playlist){
@@ -1190,23 +1233,29 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
       const rows=parseCSV(text);
       if(!rows.length) throw new Error("파일에 문장이 없습니다.");
       const headers=rows[0].map(h=>h.trim().replace(/^\uFEFF/,"").toUpperCase());
-      if(!headers.some(h=>["ENGLISH","EXAMPLE_EN"].includes(h))) {
-        throw new Error("영어 문장 열을 찾지 못했습니다. ENGLISH 또는 EXAMPLE_EN 열을 확인해 주세요.");
+      const foreignHeaders=["ENGLISH","EXAMPLE_EN","JAPANESE","EXAMPLE_JA","SPANISH","EXAMPLE_ES","GERMAN","EXAMPLE_DE","FRENCH","EXAMPLE_FR"];
+      if(!headers.some(h=>foreignHeaders.includes(h))) {
+        throw new Error("외국어 문장 열을 찾지 못했습니다. EXAMPLE_EN, EXAMPLE_JA, EXAMPLE_ES, EXAMPLE_DE, EXAMPLE_FR 중 하나를 확인해 주세요.");
       }
       const imported=rows.slice(1).filter(r=>r.some(Boolean)).map((r,i)=>{
         const v=(name)=>r[headers.indexOf(name)]??"";
         return newSentence({
           order:Number(v("ORDER"))||i+1, lesson:v("LESSON")||v("레슨")||v("DAY"),
           number: Number(v("순번")||v("NUMBER")||v("SEQUENCE")||v("SEQ"))||null,
-          english:v("ENGLISH")||v("EXAMPLE_EN"), korean:v("KOREAN")||v("EXAMPLE_KR"), description:v("DESCRIPTION")||v("설명"),
+          english:v("ENGLISH")||v("EXAMPLE_EN"),
+          japanese:v("JAPANESE")||v("EXAMPLE_JA"),
+          spanish:v("SPANISH")||v("EXAMPLE_ES"),
+          german:v("GERMAN")||v("EXAMPLE_DE"),
+          french:v("FRENCH")||v("EXAMPLE_FR"),
+          korean:v("KOREAN")||v("EXAMPLE_KR"), description:v("DESCRIPTION")||v("설명"),
           grammar:v("GRAMMAR"), structure:v("STRUCTURE"),
           words:[
             {word:v("WORD_1"),meaning:v("WORD_1_MEANING"),pronunciation:v("WORD_1_PRONUNCIATION"),pos:v("WORD_1_POS")},
             {word:v("WORD_2"),meaning:v("WORD_2_MEANING"),pronunciation:v("WORD_2_PRONUNCIATION"),pos:v("WORD_2_POS")}
           ]
         });
-      }).filter(s=>s.english.trim());
-      if(!imported.length) throw new Error("가져올 영어 문장이 없습니다. 파일 내용을 확인해 주세요.");
+      }).filter(hasForeignSentence);
+      if(!imported.length) throw new Error("가져올 외국어 문장이 없습니다. 파일 내용을 확인해 주세요.");
       p.sentences=imported;
       return;
     }
@@ -1233,7 +1282,8 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   function newSentence(data={}) {
     return {
       id:uid(),order:data.order||1,lesson:data.lesson||"",number:data.number||null,
-      english:data.english||"",korean:data.korean||"",description:data.description||"",
+      english:data.english||"",japanese:data.japanese||"",spanish:data.spanish||"",german:data.german||"",french:data.french||"",
+      korean:data.korean||"",description:data.description||"",
       grammar:data.grammar||"",structure:data.structure||"",words:data.words||[],memo:data.memo||"",
       review:false,completed:false,lastStudiedAt:null
     };
@@ -1242,7 +1292,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   function openSentenceDialog(s=null) {
     const p=currentPlaylist();if(!p){toast("먼저 플레이리스트를 선택해 주세요.");return;}
     const choices=[...p.sentences].sort((a,b)=>lessonNumber(a.lesson)-lessonNumber(b.lesson)||lessonLabel(a.lesson).localeCompare(lessonLabel(b.lesson))||sentenceNumber(a)-sentenceNumber(b));
-    $("#sentenceEditorSelect").innerHTML='<option value="">＋ 새 문장 추가</option>'+choices.map(item=>`<option value="${escapeHtml(item.id)}">${escapeHtml(lessonDisplay(item.lesson))} · ${sentenceNumber(item)}번 · ${escapeHtml(item.english.slice(0,65))}</option>`).join("");
+    $("#sentenceEditorSelect").innerHTML='<option value="">＋ 새 문장 추가</option>'+choices.map(item=>`<option value="${escapeHtml(item.id)}">${escapeHtml(lessonDisplay(item.lesson))} · ${sentenceNumber(item)}번 · ${escapeHtml((foreignSentence(item)||item.english||item.korean||"").slice(0,65))}</option>`).join("");
     $("#sentenceEditorSelect").value=s?.id||"";
     $("#saveSentenceBtn").textContent=s?"수정 저장":"추가";
     const lesson=s?.lesson||(state.selectedLessons?.length===1?lessonDisplay(state.selectedLessons[0]).replace(/^레슨\s*/,""):currentSentence()?.lesson)||"1";
@@ -1252,7 +1302,8 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     $("#editingSentenceId").value=s?.id||"";
     $("#lessonInput").value=lesson;
     $("#numberInput").value=s?sentenceNumber(s):next;
-    $("#englishInput").value=s?.english||"";
+    $("#foreignInputLabel").textContent=`${selectedTarget().name} 문장`;
+    $("#englishInput").value=s?.[selectedTarget().field]||"";
     $("#koreanInput").value=s?.korean||"";
     $("#descriptionInput").value=s?.description||"";
     $("#deleteSentenceBtn").classList.toggle("hidden",!s);
@@ -1266,8 +1317,8 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     const id=$("#editingSentenceId").value;
     const lesson=$("#lessonInput").value.trim();
     const number=Number($("#numberInput").value);
-    const english=$("#englishInput").value.trim();
-    if(!lesson||!english||!Number.isSafeInteger(number)||number<1){toast("레슨·순번·영어 문장을 확인해 주세요.");return;}
+    const foreign=$("#englishInput").value.trim();
+    if(!lesson||!foreign||!Number.isSafeInteger(number)||number<1){toast(`레슨·순번·${selectedTarget().name} 문장을 확인해 주세요.`);return;}
     if(p.sentences.some(item=>item.id!==id&&lessonLabel(item.lesson)===lessonLabel(lesson)&&sentenceNumber(item)===number)){
       toast("같은 레슨에 해당 순번이 이미 있습니다. 다른 순번을 입력해 주세요.");return;
     }
@@ -1275,7 +1326,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     if(id&&!sentence){toast("수정할 문장을 찾지 못했습니다.");return;}
     stopEverything();
     if(!sentence){sentence=newSentence({order:p.sentences.length+1});p.sentences.push(sentence);}
-    Object.assign(sentence,{lesson,number,english,korean:$("#koreanInput").value.trim(),description:$("#descriptionInput").value.trim()});
+    Object.assign(sentence,{lesson,number,[selectedTarget().field]:foreign,korean:$("#koreanInput").value.trim(),description:$("#descriptionInput").value.trim()});
     state.currentSentenceId=sentence.id;
     if(state.selectedLessons?.length&&!state.selectedLessons.includes(lessonLabel(lesson)))state.selectedLessons=[];state.lessonSelectionNone=false;
     if(getSelectedNumbers().length&&!getSelectedNumbers().includes(String(number))){state.selectedNumbers=[];state.numberSelectionNone=false;state.selectedNumber="";}
@@ -1309,23 +1360,30 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   async function practiceSentence(s,runId=playbackGeneration) {
     const check=()=>{if(session.stopRequested||runId!==playbackGeneration)throw new Error("STOP");};
     check();
+    const mode=els.languageSelect.value||state.settings.language;
+    const target=selectedTarget();
+    const targetSentence=foreignSentence(s);
+    if(mode!=="KR" && !targetSentence){
+      toast(`${target.name} 문장이 없습니다. 해당 언어 문장을 먼저 추가해 주세요.`);
+      throw new Error("MISSING_LANGUAGE");
+    }
     const repeat = state.settings.repeat==="infinite" ? Infinity : Number(state.settings.repeat);
     let count=0;
     while(count<repeat && !session.stopRequested) {
       count++;
       check();
       const lang=els.languageSelect.value||state.settings.language;
-      if(lang==="EN") await speakText(s.english,"en-US");
+      if(lang==="EN") await speakText(targetSentence,target.voice);
       if(lang==="KR") await speakText(s.korean,"ko-KR");
       if(lang==="EN_KR"){
-        await speakText(s.english,"en-US");check();
+        await speakText(targetSentence,target.voice);check();
         if(s.korean){
-          if(s.english){await waitForDelay("영어 → 한글 대기");check();}
+          if(targetSentence){await waitForDelay(`${target.name} → 한국어 대기`);check();}
           await speakText(s.korean,"ko-KR");check();
           // 영어 → 한국어 모드: 같은 문장 반복 시 한국어 뒤에도 같은 지연을 적용한다.
           // 다음 문장이 있다면 마지막 반복의 지연은 runQueue에서 한 번만 적용한다.
-          if(count<repeat && s.english){
-            await waitForDelay("한글 → 영어 대기");check();
+          if(count<repeat && targetSentence){
+            await waitForDelay(`한국어 → ${target.name} 대기`);check();
           }
         }
       }
@@ -1333,15 +1391,15 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
         if(s.korean){
           await speakText(s.korean,"ko-KR");
           check();
-          await waitBeforeEnglish();
+          await waitForDelay(`한국어 → ${target.name} 대기`);
           check();
         }
-        await speakText(s.english,"en-US");
+        await speakText(targetSentence,target.voice);
         check();
         // 한글 → 영어 모드: 같은 문장을 반복할 때는 영어 후에도 동일한 지연을 적용한다.
         // 마지막 반복은 다음 문장이 있을 때만 runQueue에서 지연시킨다.
         if(count<repeat && s.korean){
-          await waitForDelay("영어 → 한글 대기");check();
+          await waitForDelay(`${target.name} → 한국어 대기`);check();
         }
       }
       check();
@@ -1389,16 +1447,16 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
         if(index<list.length-1){
           if(language==="KR"||language==="EN"){
             await waitForDelay("다음 문장 대기");
-          }else if(language==="KR_EN"&&s.english&&list[index+1].korean){
-            // 한글 → 영어: 다음 문장 한국어 시작 전에도 영어 후 지연을 적용한다.
-            await waitForDelay("영어 → 한글 대기");
-          }else if(language==="EN_KR"&&s.korean&&list[index+1].english){
-            // 영어 → 한글: 다음 문장 영어 시작 전에도 한국어 후 지연을 적용한다.
-            await waitForDelay("한글 → 영어 대기");
+          }else if(language==="KR_EN"&&foreignSentence(s)&&list[index+1].korean){
+            // 한국어 → 선택 언어: 다음 문장의 한국어 시작 전에도 지연.
+            await waitForDelay(`${selectedTarget().name} → 한국어 대기`);
+          }else if(language==="EN_KR"&&s.korean&&foreignSentence(list[index+1])){
+            // 선택 언어 → 한국어: 다음 문장의 외국어 시작 전에도 지연.
+            await waitForDelay(`한국어 → ${selectedTarget().name} 대기`);
           }
         }
       }
-    } catch(err){if(err?.message!=="STOP")console.error(err)}
+    } catch(err){if(!["STOP","MISSING_LANGUAGE"].includes(err?.message))console.error(err)}
     finally{if(runId===playbackGeneration){stopPlaybackClock();session.playing=false;session.currentPlayQueue=null;setStatus("준비")}}
   }
 
@@ -1640,7 +1698,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
         const blob=clean.blob;
         await saveNumberedRecording({
           id:uid(),blob,mimeType:blob.type,createdAt:session.recordingStartedAt||Date.now(),duration:clean.duration,
-          sentenceId:sentence?.id||null,lesson:sentence?.lesson||"",number:sentence?sentenceNumber(sentence):null,english:sentence?.english||"직접 녹음"
+          sentenceId:sentence?.id||null,lesson:sentence?.lesson||"",number:sentence?sentenceNumber(sentence):null,english:foreignSentence(sentence)||sentence?.english||"직접 녹음"
         });
         setRecordButton("complete");setStatus("✓ 녹음 완료");
         } catch(err){console.error(err);setRecordButton("idle");setStatus("녹음 저장 실패");toast("녹음을 저장하지 못했습니다.");}
