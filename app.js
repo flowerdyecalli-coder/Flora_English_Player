@@ -365,7 +365,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     views: $$(".view"), navBtns: $$(".nav-btn"),
     currentPlaylistName: $("#currentPlaylistName"), sentenceCounter: $("#sentenceCounter"),
     recordBtn: $("#recordBtn"),
-    favoriteBtn: $("#favoriteBtn"), englishText: $("#englishText"), koreanText: $("#koreanText"), descriptionArea: $("#descriptionArea"), descriptionText: $("#descriptionText"),
+    favoriteBtn: $("#favoriteBtn"), currentSentenceLocation: $("#currentSentenceLocation"), englishText: $("#englishText"), koreanText: $("#koreanText"), descriptionArea: $("#descriptionArea"), descriptionText: $("#descriptionText"),
     playStatus: $("#playStatus"), timerText: $("#timerText"), countdownArea: $("#countdownArea"), countdownNumber: $("#countdownNumber"), countdownLabel: $("#countdownLabel"),
     repeatSelect: $("#repeatSelect"), delaySelect: $("#delaySelect"), speedSelect: $("#speedSelect"), languageSelect: $("#languageSelect"),
     playlistCards: $("#playlistCards"), playlistDetail: $("#playlistDetail"), detailPlaylistName: $("#detailPlaylistName"),
@@ -380,7 +380,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
 
   function init() {
     const version=document.querySelector(".version-badge");
-    if(version){version.textContent="v01.037";version.setAttribute("aria-label","실행 버전 v01.037");}
+    if(version){version.textContent="v01.040";version.setAttribute("aria-label","실행 버전 v01.040");}
     state.settings.autoRecord=false;
     for (let i=1;i<=10;i++) els.delaySelect.insertAdjacentHTML("beforeend", `<option value="${i}">${i}초</option>`);
     for (let i=5;i<=10;i++) {
@@ -535,6 +535,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
       els.descriptionText.textContent = "";
       els.descriptionArea.classList.add("hidden");
       els.favoriteBtn.textContent = "☆";
+      els.currentSentenceLocation.textContent = "";
       return;
     }
 
@@ -547,6 +548,9 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     els.descriptionArea.classList.toggle("hidden", !s.description || state.settings.showInfo===false);
     els.favoriteBtn.textContent = s.review ? "★" : "☆";
     els.favoriteBtn.classList.toggle("active", !!s.review);
+    const lessonIndex=lessonNumber(s.lesson);
+    const lessonText=lessonIndex===9999 ? lessonDisplay(s.lesson) : `${lessonIndex}과`;
+    els.currentSentenceLocation.textContent = `${lessonText} ${String(sentenceNumber(s)).padStart(2,"0")}번`;
 
     const language=els.languageSelect.value||state.settings.language;
     els.koreanText.classList.toggle("korean-only",language==="KR");
@@ -1317,7 +1321,12 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
         await speakText(s.english,"en-US");check();
         if(s.korean){
           if(s.english){await waitForDelay("영어 → 한글 대기");check();}
-          await speakText(s.korean,"ko-KR");
+          await speakText(s.korean,"ko-KR");check();
+          // 영어 → 한국어 모드: 같은 문장 반복 시 한국어 뒤에도 같은 지연을 적용한다.
+          // 다음 문장이 있다면 마지막 반복의 지연은 runQueue에서 한 번만 적용한다.
+          if(count<repeat && s.english){
+            await waitForDelay("한글 → 영어 대기");check();
+          }
         }
       }
       if(lang==="KR_EN"){
@@ -1328,6 +1337,12 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
           check();
         }
         await speakText(s.english,"en-US");
+        check();
+        // 한글 → 영어 모드: 같은 문장을 반복할 때는 영어 후에도 동일한 지연을 적용한다.
+        // 마지막 반복은 다음 문장이 있을 때만 runQueue에서 지연시킨다.
+        if(count<repeat && s.korean){
+          await waitForDelay("영어 → 한글 대기");check();
+        }
       }
       check();
 
@@ -1371,8 +1386,16 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
         if(session.stopRequested||runId!==playbackGeneration)break;
         if(!forceContinuous&&!state.settings.autoNext)break;
         const language=els.languageSelect.value||state.settings.language;
-        if(index<list.length-1&&(language==="KR"||language==="EN")){
-          await waitForDelay("다음 문장 대기");
+        if(index<list.length-1){
+          if(language==="KR"||language==="EN"){
+            await waitForDelay("다음 문장 대기");
+          }else if(language==="KR_EN"&&s.english&&list[index+1].korean){
+            // 한글 → 영어: 다음 문장 한국어 시작 전에도 영어 후 지연을 적용한다.
+            await waitForDelay("영어 → 한글 대기");
+          }else if(language==="EN_KR"&&s.korean&&list[index+1].english){
+            // 영어 → 한글: 다음 문장 영어 시작 전에도 한국어 후 지연을 적용한다.
+            await waitForDelay("한글 → 영어 대기");
+          }
         }
       }
     } catch(err){if(err?.message!=="STOP")console.error(err)}
@@ -1615,10 +1638,9 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
         const clean=await cleanRecordedBlob(rawBlob);
         if(!clean.frames){setRecordButton("idle");setStatus("말소리가 없어 저장하지 않았습니다.");return;}
         const blob=clean.blob;
-        await addRecording({
-          id:uid(),blob,mimeType:blob.type,createdAt:Date.now(),duration:clean.duration,
-          sentenceId:sentence?.id||null,lesson:sentence?.lesson||"",number:sentence?sentenceNumber(sentence):null,english:sentence?.english||"직접 녹음",
-          name:`sentence_${String((state.currentIndex||0)+1).padStart(3,"0")}_${dateStamp()}.${extensionFor(blob.type)}`
+        await saveNumberedRecording({
+          id:uid(),blob,mimeType:blob.type,createdAt:session.recordingStartedAt||Date.now(),duration:clean.duration,
+          sentenceId:sentence?.id||null,lesson:sentence?.lesson||"",number:sentence?sentenceNumber(sentence):null,english:sentence?.english||"직접 녹음"
         });
         setRecordButton("complete");setStatus("✓ 녹음 완료");
         } catch(err){console.error(err);setRecordButton("idle");setStatus("녹음 저장 실패");toast("녹음을 저장하지 못했습니다.");}
@@ -1695,6 +1717,38 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     });
   }
   async function addRecording(rec){await withStore("readwrite",s=>s.put(rec));}
+
+  // All newly saved MP3 files use YYYYMMDD_001.mp3, YYYYMMDD_002.mp3, ... .
+  // The saved daily high-water mark survives page refreshes and deletion of recordings.
+  // Serializing jobs in this tab also prevents the merge and record flows from using
+  // the same number if their save requests overlap.
+  let numberedRecordingSaveQueue=Promise.resolve();
+  function recordingDateCode(timestamp){
+    const day=new Date(timestamp);
+    return `${day.getFullYear()}${pad(day.getMonth()+1)}${pad(day.getDate())}`;
+  }
+  function saveNumberedRecording(rec){
+    const job=numberedRecordingSaveQueue.then(async()=>{
+      const date=recordingDateCode(rec.createdAt||Date.now());
+      const key=`floraEnglishPlayer.recordingSerial.${date}`;
+      let previous=0;
+      try{previous=Number(localStorage.getItem(key))||0;}catch(error){console.warn("녹음 번호 기록을 불러오지 못했습니다.",error);}
+      // Check existing filenames too, e.g. after a user clears only site settings.
+      const existing=await getAllRecordings();
+      for(const item of existing){
+        const filename=String(item.name||"");
+        const suffix=filename.startsWith(date+"_")?filename.slice(date.length+1).match(/^([0-9]+)[.]mp3$/i):null;
+        if(suffix)previous=Math.max(previous,Number(suffix[1]));
+      }
+      const next=previous+1;
+      const name=`${date}_${String(next).padStart(3,"0")}.mp3`;
+      await addRecording({...rec,name});
+      try{localStorage.setItem(key,String(next));}catch(error){console.warn("녹음 번호 기록을 저장하지 못했습니다.",error);}
+      return name;
+    });
+    numberedRecordingSaveQueue=job.catch(()=>{});
+    return job;
+  }
   async function getRecording(id){
     const db=await openDB();return new Promise((resolve,reject)=>{const r=db.transaction(RECORDING_STORE).objectStore(RECORDING_STORE).get(id);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
   }
@@ -1715,7 +1769,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
         <input class="recording-check" type="checkbox">
         <div class="recording-info">
           <div class="title">${escapeHtml(r.english||r.name)}</div>
-          <div class="meta">${formatDate(r.createdAt)} · ${formatDuration(r.duration)} · ${formatBytes(r.blob.size)}</div>
+          <div class="meta">${escapeHtml(r.name||"녹음 파일")} · ${formatDate(r.createdAt)} · ${formatDuration(r.duration)} · ${formatBytes(r.blob.size)}</div>
           <audio controls src="${url}"></audio>
           <div class="recording-actions">
             <button data-record-action="rename">이름 변경</button>
@@ -1852,18 +1906,6 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     const number=record.number||(sentence?sentenceNumber(sentence):null);
     return {lesson:lesson===9999?"미지정":String(lesson),number:number?String(number):"미지정"};
   }
-  function mergedRecordingFileName(record,existing,date){
-    const values=recordingLessonAndNumber(record);
-    const prefix=`${values.lesson}_${values.number}_${date}_`;
-    let sequence=1;
-    for(const item of existing){
-      if(!item.name?.startsWith(prefix))continue;
-      const suffix=item.name.slice(prefix.length).match(/^(\d+)\.(?:wav|mp3)$/i);
-      if(suffix)sequence=Math.max(sequence,Number(suffix[1])+1);
-    }
-    return prefix+String(sequence).padStart(3,"0")+".mp3";
-  }
-
   async function mergeSelectedRecordings(){
     const button=$("#mergeBtn"),status=$("#mergeStatus");if(button.disabled)return;
     const ids=selectedRecordingIds();
@@ -1893,9 +1935,8 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
       if(!frames)throw new Error("선택한 녹음에 말소리가 없습니다.");
       parts.push(new Uint8Array(encoder.flush()));
       const blob=new Blob(parts,{type:"audio/mpeg"});
-      const name=mergedRecordingFileName(firstRecord,await getAllRecordings(),dateStamp().split("_")[0]);
       const source=recordingLessonAndNumber(firstRecord);
-      await addRecording({id:uid(),blob,mimeType:"audio/mpeg",createdAt:Date.now(),duration:frames/rate,sentenceId:null,lesson:source.lesson,number:source.number,english:"병합 녹음",name});
+      await saveNumberedRecording({id:uid(),blob,mimeType:"audio/mpeg",createdAt:Date.now(),duration:frames/rate,sentenceId:null,lesson:source.lesson,number:source.number,english:"병합 녹음"});
       await renderRecordings();status.textContent="병합 완료: 목록 맨 위의 ‘병합 녹음’에서 재생·다운로드하세요.";
       toast("병합 녹음을 저장했습니다.");
     }catch(error){

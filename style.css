@@ -404,9 +404,16 @@ dialog{border:0;border-radius:22px;padding:0;width:min(calc(100% - 28px),460px);
   background:#365f7a;
 }
 
-/* v01.037: four description lines and a compact playback/settings gap. */
+/* v01.038: four description lines and a compact playback/settings gap. */
 #studyView .description-text{max-height:5.8em;}
 .player-card .transport{margin-bottom:6px;}
 .player-card #countdownArea{height:16px;min-height:16px;max-height:16px;line-height:16px;margin-bottom:0;}
 .player-card .reference-settings{margin-top:4px;}
 @media(min-width:521px){#studyView .description-text{max-height:6.4em;}}
+
+/* v01.039: show lesson and sentence number immediately left of the review star. */
+#studyView .study-review-group{display:flex;align-items:center;justify-content:flex-end;gap:3px;flex:0 0 auto;white-space:nowrap}
+#studyView .sentence-location{font-size:11px;font-weight:600;color:#818791;line-height:1.3;letter-spacing:-.02em}
+@media(max-width:390px){#studyView .sentence-location{font-size:10px}}
+
+/* v01.040: new and merged recording files are named YYYYMMDD_###.mp3. */
