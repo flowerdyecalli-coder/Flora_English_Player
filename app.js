@@ -549,8 +549,8 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     els.favoriteBtn.textContent = s.review ? "★" : "☆";
     els.favoriteBtn.classList.toggle("active", !!s.review);
     const lessonIndex=lessonNumber(s.lesson);
-    const lessonText=lessonIndex===9999 ? lessonDisplay(s.lesson) : `${lessonIndex}과`;
-    els.currentSentenceLocation.textContent = `${lessonText} ${String(sentenceNumber(s)).padStart(2,"0")}번`;
+    const lessonText=lessonIndex===9999 ? "--" : String(lessonIndex);
+    els.currentSentenceLocation.textContent = `${lessonText}-${String(sentenceNumber(s)).padStart(2,"0")}`;
 
     const language=els.languageSelect.value||state.settings.language;
     els.koreanText.classList.toggle("korean-only",language==="KR");

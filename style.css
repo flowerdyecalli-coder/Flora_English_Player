@@ -411,9 +411,13 @@ dialog{border:0;border-radius:22px;padding:0;width:min(calc(100% - 28px),460px);
 .player-card .reference-settings{margin-top:4px;}
 @media(min-width:521px){#studyView .description-text{max-height:6.4em;}}
 
-/* v01.039: show lesson and sentence number immediately left of the review star. */
-#studyView .study-review-group{display:flex;align-items:center;justify-content:flex-end;gap:3px;flex:0 0 auto;white-space:nowrap}
-#studyView .sentence-location{font-size:11px;font-weight:600;color:#818791;line-height:1.3;letter-spacing:-.02em}
-@media(max-width:390px){#studyView .sentence-location{font-size:10px}}
+/* v01.041: numeric lesson-position label matches the sentence counter size.
+   Place the label directly before the star, aligned to the bottom of its row. */
+#studyView .study-top{align-items:flex-end}
+#studyView .study-review-group{display:flex;align-items:flex-end;align-self:flex-end;justify-content:flex-end;gap:4px;flex:0 0 auto;white-space:nowrap}
+#studyView .sentence-location{font-size:13px;font-weight:600;color:#818791;line-height:1;letter-spacing:-.02em;padding-bottom:5px;font-variant-numeric:tabular-nums}
+@media(max-width:600px), (pointer:coarse) and (max-width:1100px){
+  #studyView .sentence-location{font-size:15px}
+}
 
 /* v01.040: new and merged recording files are named YYYYMMDD_###.mp3. */
